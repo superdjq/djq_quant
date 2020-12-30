@@ -372,6 +372,7 @@ def fold_score(clf, x_train, y_train):
 if __name__ == '__main__':
     # pj = StcokClassifier('RF_target10_classify5_inx-2020sz50_loss-profit_working')
     # pj.train()
+    # print('I change some file!')
     for pjNam in [
                  #'RF_target30_classify5_inx-cyb_loss-r2_working_2021',
                  # 'RF_target30_classify5_inx-cyb_loss-f1_working_2021',
