@@ -17,23 +17,7 @@ You can simply create your model with a single line project name, like
       "working" use the newest data to train the model
 - other labels for differentiation
 ## Process flow
-```
-graph TD
-    A[data with "open close high low volume"] -->B[data cleaning & indicators transforming]
-    B --> C{train several weak classifiers}
-    C --> |grid search| D[SVM]
-    C --> |grid search| E[RF]
-    C --> |grid search| F[ET]
-    D --> |results| G[ensemble classifier]
-    E --> G
-    F --> G
-    G --> H[estimated change]
-    B --> |class intervals| H
-    H --> I[estimated change of index]
-    B --> |market weighted| I
-    I --> |Reinforcement Learning / Greedy| J[trading strategy]
-    J --> K[auto trader]
-```
+![Image text](https://raw.githubusercontent.com/superdjq/djq_quant/master/model%20flowchart.png)
 ## Data source & data layout
 You can use your local data set or download china stock data by using 
 ```python 
@@ -42,6 +26,7 @@ djq_data_processor.index_update('15')
 ```
 with "D" for daily data and "n" for every n minutes data, which n in {5,15,30,60}
 ### folder structure
+```
 main_folder 
 ├── data
 │   ├── day
@@ -55,7 +40,8 @@ main_folder
 │     ├── result       // record predict results for each day 
 │     └── model_folder                  
 ├── trade
-      └── trade_folder       
+      └── trade_folder     
+```  
 ## Demo
 ### create a model
 ```python 
@@ -79,6 +65,7 @@ trade.daily_monitor()
 ## Todo list
 - [ ] Add comments
 - [ ] Utils module
+- [ ] Data base support
 - [ ] Automatic trading module
 - [ ] Thresholds finding by RL
 - [ ] Diversified indicators
