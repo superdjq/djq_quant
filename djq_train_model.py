@@ -1,3 +1,26 @@
+"""
+The module 'djq_train_model' provides a streamline method to train a stock predictor model
+using basic machine learning algorithm.
+Define your model params all in a single project name, like
+'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_working_2021'
+Project name structure: 'keyword1 + param1' + 'keyword2 + param2' + '_' + ...
+the basic keywords:
+- machine learning method, like "SVM", "RF" for random-forest, "ET" for extra-tree,
+  Start with "ensemble" means your project consists of several basic classifiers, and "ADA" for using adaboost.
+- key "target"+"n" means you want to predict the change after n days
+- key "classify"+"n" means how many classes you want to qut your train sets by using "pandas.qcut()"
+- key "inx" means your model is based on the constituents of the index, you can also define your own stock portfolio
+- key "loss" means the loss function you want to use, like built-in func "R2" and "f1" and other customized functions
+- add key "proba" means the classifiers give you probabilities of each class
+- key "modelling" divide your dataset into train-set and test-set, and give you the result on test-set
+      "working" use the newest data to train the model
+- key "xlst" means the indicators you want to use in your model, several indicator combinations are defined in
+        module "zsys", you can alse define your own indicator combination in "zsys"
+- key "date" means the start and end year you want to used in your model, like "date2012-2020"
+- key "minprofit" helps to remove stocks with max upward change below your desired value
+- key "pca" set the dimension scale to reduce raw data set, default with 50
+- other labels for differentiation
+"""
 import os, time
 import pandas as pd
 import numpy as np
@@ -21,6 +44,7 @@ from joblib import Parallel, delayed
 class StcokClassifier(object):
     # BASE_DIR = 'E:\\WORK\\quant\\model\\'
     BASE_DIR = 'model/'
+    # Add your algorithm in BASE_MODELS
     BASE_MODELS = {'SVM': SVC(kernel='rbf', class_weight='balanced', probability=True),
                     'RF': RandomForestClassifier(criterion='gini',
                             max_features='auto', n_jobs=8, min_samples_split=2,
@@ -33,6 +57,7 @@ class StcokClassifier(object):
                             max_features='auto', n_jobs=8,
                             bootstrap=True, oob_score=False,
                             random_state=None, verbose=0)}
+    # ADD your algorithm's optimal params in dict BASE_MODEL_PARAMS
     BASE_MODEL_PARAMS = {'SVM': {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.01, 0.001, 0.0001]},
                         'RF': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None]},
                          'ET': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None],
@@ -130,7 +155,12 @@ class StcokClassifier(object):
 
 
     def data_prepare(self, code, drop=True, real_time=True):
-        # 解析输入参数
+        """
+        :param code: China stock code with 6 numbers, using local data set
+        :param drop: set True to drop the data of days with missing information
+        :param real_time: add real time data as the newest data when the market is open
+        :return: train_data, train_label, test_data, test_label, df_train, df_test, class threshold
+        """
         xlst = zsys.ohlcVLst + zsys.stcokcharts_indicators + zsys.last_data  # + zsys.TDS_talib_indicators_all
         train_start = '2012-01-01'
         train_end = '2019-12-31'
@@ -220,6 +250,12 @@ class StcokClassifier(object):
 
 
     def train(self):
+        """
+        Train every single stock in the index
+        Use grid search to find the best parameters
+        Create a book in path '/model/book' to record the params, model pkl file address, test result
+        :return: None
+        """
         for code in self.mlst.copy():
             file_path = StcokClassifier.BASE_DIR + self.pjNam + '/' + code + '.pkl'
             if os.path.isfile(file_path):
@@ -290,6 +326,12 @@ class StcokClassifier(object):
         return model.predict(X)
 
     def model_predict(self, code, train_result, real_time=True):
+        '''
+        :param code: string of length 6, code of china stock
+        :param train_result: set True to show the result on train set, instead of test set result
+        :param real_time: set True to crawl the real time data when market is open
+        :return: pandas.Series, estimated change
+        '''
         try:
             if train_result:
                 x_test, _, _, _, df_test, _, _ = self.data_prepare(code, drop=False, real_time=real_time)
@@ -303,7 +345,7 @@ class StcokClassifier(object):
         df_test[code] = model.predict(x_test)
         return df_test[code]
 
-    def daily_predict(self, date='today', train_result=False):
+    def daily_predict(self, train_result=False):
         today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
         real_time = True
         folder = StcokClassifier.BASE_DIR + 'result/' + today + '/' + self.pjNam
@@ -314,20 +356,6 @@ class StcokClassifier(object):
         # file_path = folder + '/' + self.pjNam + '_result.csv'
         if not os.path.isfile(file_path):
             result = pd.concat(Parallel(n_jobs=-1)(delayed(self.model_predict)(code, train_result, real_time=real_time) for code in self.mlst), axis=1)
-            # for code in self.mlst:
-            #     try:
-            #         if train_result:
-            #             x_test, _, _, _, df_test, _ = self.data_prepare(code, drop=False, real_time=real_time)
-            #         else:
-            #             _, _, x_test, _, _, df_test = self.data_prepare(code, drop=False, real_time=real_time)
-            #     except ValueError as e:
-            #         print(e.args)
-            #         continue
-            #     model_name = self.book[self.book.code == code]['model_dir'].values[0]
-            #     model = joblib.load(StcokClassifier.BASE_DIR + model_name)
-            #     df_test['y_pred'] = model.predict(x_test)
-            #     for idx, line in df_test.iterrows():
-            #         result.loc[line['date'], code] = line['y_pred']
             result = result.sort_index()
             result = result.fillna('2')
             result = result.astype('int')
@@ -340,7 +368,8 @@ class StcokClassifier(object):
 
 def profit_score(clf, X, y_true):
     '''
-    五分类问题，用于计算预测值实际收益的损失函数
+    sample of customized loss function
+    return the mean change when predict is right
     :param clf:
     :param X:
     :param y_true:

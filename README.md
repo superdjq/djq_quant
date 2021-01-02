@@ -7,7 +7,7 @@ You can simply create your model with a single line project name, like
 - ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_working_2021
 ### Project name components
 - machine learning method, like "SVM", "RF" for random-forest, "ET" for extra-tree, 
-  Start with "emsemble" means your project consists of several basic classifiers, and "ADA" for using adaboost.
+  Start with "ensemble" means your project consists of several basic classifiers, and "ADA" for using adaboost.
 - key "target"+"n" means you want to predict the change after n days
 - key "classify"+"n" means how many classes you want to qut your train sets by using "pandas.qcut()"
 - key "inx" means your model is based on the constituents of the index, you can also define your own stock portfolio
@@ -63,7 +63,7 @@ trade = Trader('etf_trade_manager')
 trade.daily_monitor()
 ```
 ## Todo list
-- [ ] Add comments
+- [x] Add comments
 - [ ] Utils module
 - [ ] Data base support
 - [ ] Automatic trading module
