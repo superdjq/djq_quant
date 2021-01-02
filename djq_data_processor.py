@@ -1,3 +1,8 @@
+"""
+The module "djq_data_processor" includes China stock data crawling,
+prepare data set for lstm learning, and data washing process
+"""
+
 import pandas as pd
 import numpy as np
 import tushare as ts
@@ -211,14 +216,14 @@ def df_rdcsv_tim0(fss, ksgn, tim0):
 def df_xappend(df, df0, ksgn, num_round=3, vlst=zsys.ohlcDVLst):
     if (len(df0) > 0):
         df2 = df0.append(df)
-        df2 = df2.sort_values([ksgn], ascending=True);
-        df2.drop_duplicates(subset=ksgn, keep='last', inplace=True);
+        df2 = df2.sort_values([ksgn], ascending=True)
+        df2.drop_duplicates(subset=ksgn, keep='last', inplace=True)
         # xd2.index=pd.to_datetime(xd2.index);xd=xd2
         df = df2
 
     #
-    df = df.sort_values([ksgn], ascending=False);
-    df = np.round(df, num_round);
+    df = df.sort_values([ksgn], ascending=False)
+    df = np.round(df, num_round)
     df2 = df[vlst]
     #
     return df2
