@@ -408,5 +408,5 @@ if __name__ == '__main__':
                  #'ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        # pj.train()
+        #pj.train()
         pj.daily_predict()
