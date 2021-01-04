@@ -12,8 +12,6 @@ the basic keywords:
 - key "inx" means your model is based on the constituents of the index, you can also define your own stock portfolio
 - key "loss" means the loss function you want to use, like built-in func "R2" and "f1" and other customized functions
 - add key "proba" means the classifiers give you probabilities of each class
-- key "modelling" divide your dataset into train-set and test-set, and give you the result on test-set
-      "working" use the newest data to train the model
 - key "xlst" means the indicators you want to use in your model, several indicator combinations are defined in
         module "zsys", you can alse define your own indicator combination in "zsys"
 - key "date" means the start and end year you want to used in your model, like "date2012-2020"
@@ -66,7 +64,6 @@ class StcokClassifier(object):
     def __init__(self, pjNam):
         self.pjNam = pjNam
         self.ensemble = False
-        self.pj_type = 'modelling'
         self.subclassifiers = None
         self.target_day = 30
         self.classify = 5
@@ -117,8 +114,6 @@ class StcokClassifier(object):
                 self.xlst = xlst
             elif part == 'proba':
                 self.proba = True
-            elif part in ['mdoelling', 'working']:
-                self.pj_type = part
             else:
                 self.data_params.append(part)
         if not self.model_type:
@@ -165,8 +160,6 @@ class StcokClassifier(object):
         train_start = '2012-01-01'
         train_end = '2019-12-31'
         n_pca = 50
-        if self.pj_type == 'working':
-            train_end = time.strftime('%Y-01-01')
         min_profit_ratio = self.target_day // 3
         for part in self.data_params:
             if part.startswith('xlst'):
@@ -291,7 +284,7 @@ class StcokClassifier(object):
             for i in range(5):
                 result_dict['tier'+str(i)] = (thresholds[i] + thresholds[i+1]) / 2
             result_dict.update({'code': code, 'best_train_score': score, 'best_params': str(params), 'model_dir': file_path})
-            if self.pj_type == 'modelling' and len(x_test):
+            if len(x_test):
                 y_pred = model.predict(x_test)
                 profit = df_test['y_pct_change'].values[y_pred == self.classify-1].mean()
                 print('The best model trained for {} get profit {} on the test set.'.format(code, profit))
@@ -409,7 +402,7 @@ if __name__ == '__main__':
                  #'ET_target30_classify5_inx-cyb_loss-r2_working_2021',
                  #'ET_target30_classify5_inx-cyb_loss-f1_working_2021',
                  #'ET_target30_classify5_inx-cyb_loss-profit_working_2021',
-                 'SVM_target30_classify5_inx-399006_loss-r2_modelling_2021',
+                 'SVM_target30_classify5_inx-399006_loss-r2_2021',
                  #'SVM_target30_classify5_inx-cyb_loss-f1_working_2021',
                  #'SVM_target30_classify5_inx-cyb_loss-profit_working_2021',
                  #'ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working_2021'
