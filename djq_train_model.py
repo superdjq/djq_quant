@@ -345,12 +345,10 @@ class StcokClassifier(object):
         df_test[code] = model.predict(x_test)
         return df_test[code]
 
-    def daily_predict(self, train_result=False):
+    def daily_predict(self, train_result=False, real_time=True):
         today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
-        real_time = True
         folder = StcokClassifier.BASE_DIR + 'result/' + today + '/' + self.pjNam
         if not os.path.isdir(folder):
-            real_time = False
             os.makedirs(folder)
         file_path = folder + '/' + time.strftime('%H-%M-%S-') + self.pjNam + '_result.csv'
         # file_path = folder + '/' + self.pjNam + '_result.csv'

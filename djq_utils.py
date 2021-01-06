@@ -223,8 +223,7 @@ def cal_weights(xlst, end_date=time.strftime('%Y-%m-%d')):
 
 
 if __name__ == '__main__':
-    # df1 = pd.read_csv('test.csv', index_col=0)
-    # df1 = df1.loc['2020/8/7':'2020/12/28']
+     df1 = pd.read_csv('test.csv', index_col=0)
+     df1 = df1.loc['2020/8/7':'2020/12/28']
     # mkt_cmp(df1.cum_profit, start_date='2020-01-01')
     # print(cal_weights(['000016', '399300','399006']))
-    greedy_thresahold_find('test')
