@@ -15,6 +15,7 @@ import time, os, sys
 import djq_data_processor
 import chinese_calendar, datetime
 import dtshare
+import zsys
 
 class Trader(object):
     BASE_DIR = 'trade/'
@@ -29,31 +30,34 @@ class Trader(object):
         self.weights = config.weights
         self.model_names = config.model_names
         self.data_path = config.data_path
+        self.thresholds_u = config.thresholds_u
+        self.thresholds_d = config.thresholds_d
+        self.steps = config.steps
         assert set(self.weights.keys()) == set(self.model_names.keys())
         self.securities = set(self.model_names.keys())
         self.report = self.BASE_DIR + self.name + '/report.log'
         # 爬取当天开盘盘面信息，主要获取市值用于加权
         print('Start crawling market infomation')
         self.mkt = dtshare.stock_zh_a_spot()
+        time.sleep(20)
         # self.mkt = pd.read_csv('E:\\WORK\\quant\\tmp\\mkt.csv')
+        # TODO: remove data update to processor module, whether to update depends on the last day
+        if self.last_workday() >= pd.read_csv(zsys.rdatCNX+'399300.csv',index_col=0).index[0]:
+            for xtye in ['D', '5']:
+                djq_data_processor.stock_update(xtye, self.mkt)
+                djq_data_processor.index_update(xtye)
         self.mkt = self.mkt.set_index('code')
         # create a book of estimated result with local data
         self.df_pred = self.initial_pred()
         # create a environment which tells daily stock/index change
         self.df_return = self.initial_env()
         assert len(self.df_pred) == len(self.df_return)
-        self.thresholds_u = config.thresholds_u
-        self.thresholds_d = config.thresholds_d
-        self.steps = config.steps
         if not os.path.isfile(self.BASE_DIR + self.name + '/book.csv'):
             self.create_book()
         self.book = pd.read_csv(self.BASE_DIR + self.name + '/book.csv', index_col=0)
         self.pos = dict(self.book.iloc[-1])
-        if self.last_workday() != self.book.index[-1]:
-            for xtye in ['D', '5']:
-                djq_data_processor.stock_update(xtye)
-                djq_data_processor.index_update(xtye)
-            self.update()
+
+        self.update()
 
 
 
@@ -62,12 +66,11 @@ class Trader(object):
         df_pred = pd.DataFrame()
         df_index = None
         for name, model_name in self.model_names.items():
-            df = StcokClassifier(model_name).daily_predict()
+            df = StcokClassifier(model_name).daily_predict(real_time=False)
             df_index = df.index
             df_pred.loc[:, name] = self.cls_to_weighted_pct(df, model_name)
         if df_index is not None:
             df_pred = df_pred.set_index(df_index)
-        print(df_pred)
         return df_pred
 
     def initial_env(self):

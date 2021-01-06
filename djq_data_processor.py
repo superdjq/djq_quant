@@ -114,7 +114,7 @@ def get_label(df, target_day=5, pct_change=True):
     if pct_change:
         df['y'] = 100 * (df['y'] - df.close) / df.close
 
-def stock_update(typ='D'):
+def stock_update(typ='D', df_all_stock_daily=None):
     '''
     Update your local stock data csv
     :param typ:
@@ -122,8 +122,8 @@ def stock_update(typ='D'):
                             '5'-every 5 minutes, same as '15','30','60'
     :return: Nothing
     '''
-
-    df_all_stock_daily = dt.stock_zh_a_spot()
+    if df_all_stock_daily is None:
+        df_all_stock_daily = dt.stock_zh_a_spot()
     n = len(df_all_stock_daily['code'])
     # for i,xc in enumerate(stkPool['code']):
     file_path = zsys.rdatCN if typ == 'D' else zsys.rdatMin0 + 'm' + '0'*(2-len(typ)) + typ + '/stk/'
