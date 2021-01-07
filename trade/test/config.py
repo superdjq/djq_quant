@@ -15,9 +15,6 @@ model_names = {'399006': 'SVM_target30_classify5_inx-399006_loss-r2_modelling_20
 #                 'hs300':"F:\\model\\result\\2020-08-05\\ensemble_ADA_target30_classify5_inx-hs300_loss-r2_proba_working\\15-49-33-ensemble_ADA_target30_classify5_inx-hs300_loss-r2_proba_working_result.csv",
 #                 'cyb':"F:\\model\\result\\2020-08-05\\ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working\\15-10-47-ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working_result.csv"}
 
-# You must specify the path of the ohlc data for each security
-
-data_path = {'399006': 'data/day/inx/399006.csv'}
 
 # You must define the threshold for your model to long or short the security
 

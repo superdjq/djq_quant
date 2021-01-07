@@ -12,8 +12,6 @@ the basic keywords:
 - key "inx" means your model is based on the constituents of the index, you can also define your own stock portfolio
 - key "loss" means the loss function you want to use, like built-in func "R2" and "f1" and other customized functions
 - add key "proba" means the classifiers give you probabilities of each class
-- key "modelling" divide your dataset into train-set and test-set, and give you the result on test-set
-      "working" use the newest data to train the model
 - key "xlst" means the indicators you want to use in your model, several indicator combinations are defined in
         module "zsys", you can alse define your own indicator combination in "zsys"
 - key "date" means the start and end year you want to used in your model, like "date2012-2020"
@@ -25,7 +23,7 @@ import os, time
 import pandas as pd
 import numpy as np
 import zsys
-from djq_data_processor import get_label
+from djq_data_processor import get_label, get_data
 from djq_talib import get_all_finanical_indicators
 import tushare as ts
 import dtshare as dt
@@ -66,7 +64,6 @@ class StcokClassifier(object):
     def __init__(self, pjNam):
         self.pjNam = pjNam
         self.ensemble = False
-        self.pj_type = 'modelling'
         self.subclassifiers = None
         self.target_day = 30
         self.classify = 5
@@ -117,13 +114,10 @@ class StcokClassifier(object):
                 self.xlst = xlst
             elif part == 'proba':
                 self.proba = True
-            elif part in ['mdoelling', 'working']:
-                self.pj_type = part
             else:
                 self.data_params.append(part)
         if not self.model_type:
             raise ValueError('You should clarify the TYPE of the Classifier!')
-
 
         if os.path.isfile(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv'):
             self.book = pd.read_csv(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv',
@@ -152,8 +146,6 @@ class StcokClassifier(object):
         if not os.path.isdir(self.BASE_DIR + self.pjNam):
             os.makedirs(self.BASE_DIR + self.pjNam)
 
-
-
     def data_prepare(self, code, drop=True, real_time=True):
         """
         :param code: China stock code with 6 numbers, using local data set
@@ -165,8 +157,6 @@ class StcokClassifier(object):
         train_start = '2012-01-01'
         train_end = '2019-12-31'
         n_pca = 50
-        if self.pj_type == 'working':
-            train_end = time.strftime('%Y-01-01')
         min_profit_ratio = self.target_day // 3
         for part in self.data_params:
             if part.startswith('xlst'):
@@ -193,7 +183,7 @@ class StcokClassifier(object):
 
         # 数据准备
         try:
-            df = pd.read_csv(zsys.rdatCN + code + '.csv')
+            df = get_data('D', code)
         except:
             raise ValueError('Cannot find the file!')
         if real_time and df['date'][0] != time.strftime('%Y-%m-%d'):
@@ -248,7 +238,6 @@ class StcokClassifier(object):
                 x_test = pca_50.transform(x_test)
         return self.subclassifiers_transfer(code, x_train), df_train['y'].values, self.subclassifiers_transfer(code, x_test), df_test['y'].values, df_train, df_test, thresholds
 
-
     def train(self):
         """
         Train every single stock in the index
@@ -291,7 +280,7 @@ class StcokClassifier(object):
             for i in range(5):
                 result_dict['tier'+str(i)] = (thresholds[i] + thresholds[i+1]) / 2
             result_dict.update({'code': code, 'best_train_score': score, 'best_params': str(params), 'model_dir': file_path})
-            if self.pj_type == 'modelling' and len(x_test):
+            if len(x_test):
                 y_pred = model.predict(x_test)
                 profit = df_test['y_pct_change'].values[y_pred == self.classify-1].mean()
                 print('The best model trained for {} get profit {} on the test set.'.format(code, profit))
@@ -303,8 +292,6 @@ class StcokClassifier(object):
 
         self.book.to_csv(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv')
         self.mlst = list(self.book['code'].values)
-
-
 
     def subclassifiers_transfer(self, code, X):
         if self.ensemble and X.shape[0]:
@@ -361,18 +348,15 @@ class StcokClassifier(object):
         return pd.read_csv(file_path, index_col=0)
 
 
-
-
-
 def profit_score(clf, X, y_true):
-    '''
+    """
     sample of customized loss function
     return the mean change when predict is right
     :param clf:
     :param X:
     :param y_true:
     :return:
-    '''
+    """
     y_pred = clf.predict(X)
     threshold = y_true.max()
     return y_true[y_pred==threshold].mean()
@@ -396,6 +380,7 @@ def fold_score(clf, x_train, y_train):
         y_valid += list(clf.predict(x_test))
     return accuracy_score(y_pred=np.array(y_valid), y_true=y_train), r2_score(y_pred=np.array(y_valid), y_true=y_train)
 
+
 if __name__ == '__main__':
     # pj = StcokClassifier('RF_target10_classify5_inx-2020sz50_loss-profit_working')
     # pj.train()
@@ -407,11 +392,11 @@ if __name__ == '__main__':
                  #'ET_target30_classify5_inx-cyb_loss-r2_working_2021',
                  #'ET_target30_classify5_inx-cyb_loss-f1_working_2021',
                  #'ET_target30_classify5_inx-cyb_loss-profit_working_2021',
-                 'SVM_target30_classify5_inx-399006_loss-r2_modelling_2021',
+                 'SVM_target30_classify5_inx-399006_loss-r2_2021',
                  #'SVM_target30_classify5_inx-cyb_loss-f1_working_2021',
                  #'SVM_target30_classify5_inx-cyb_loss-profit_working_2021',
                  #'ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        # pj.train()
+        #pj.train()
         pj.daily_predict()
