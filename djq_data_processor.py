@@ -11,7 +11,8 @@ import os
 import djq_talib
 import zsys
 from sklearn import preprocessing
-
+from sqlalchemy import create_engine
+import datetime, chinese_calendar
 
 def prepare_single_df_to_lstm(df, xlst, window=30, classify=(2, 0), target_day=5, split_date='2019-01-01', noclose=True):
     df = djq_talib.get_all_finanical_indicators(df, divided_by_close=noclose)
@@ -79,7 +80,7 @@ def prepare_inx_to_lstm(inx='sz50', xlst=zsys.ohlcVLst, window=30, one_hot=True,
         df = pd.read_csv(rss+code+'.csv')
         df['code'] = code
         if active_date is not None: df = df[df.date >=active_date]
-        train_x, train_y, test_x, test_y, df_test = prepare_single_df_to_lstm(df, xlst, window=window, one_hot=one_hot, classify_params=classify_params, target_day=target_day, noclose=noclose)
+        train_x, train_y, test_x, test_y, df_test = prepare_single_df_to_lstm(df, xlst, window=window, target_day=target_day, noclose=noclose)
         train_total_x += train_x.tolist()
         train_total_y += train_y.tolist() if type(train_y) == np.ndarray else train_y
         test_total_x += test_x.tolist()
@@ -109,10 +110,12 @@ def transfer_label_to_classification(df, classify=(2,0)):
             bottom += step
         df['y_pct_change'] = tmp
 
+
 def get_label(df, target_day=5, pct_change=True):
     df['y'] = df.close.shift(-target_day)
     if pct_change:
         df['y'] = 100 * (df['y'] - df.close) / df.close
+
 
 def stock_update(typ='D', df_all_stock_daily=None):
     '''
@@ -124,6 +127,12 @@ def stock_update(typ='D', df_all_stock_daily=None):
     '''
     if df_all_stock_daily is None:
         df_all_stock_daily = dt.stock_zh_a_spot()
+    if zsys.use_mysql:
+        db = 'stock_' + typ
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8"%(zsys.mysql_user,
+                                                                              zsys.mysql_password,
+                                                                              zsys.mysql_host,
+                                                                              zsys.mysql_port, db))
     n = len(df_all_stock_daily['code'])
     # for i,xc in enumerate(stkPool['code']):
     file_path = zsys.rdatCN if typ == 'D' else zsys.rdatMin0 + 'm' + '0'*(2-len(typ)) + typ + '/stk/'
@@ -132,35 +141,49 @@ def stock_update(typ='D', df_all_stock_daily=None):
         print("\n", i, "/", n, '@', code, rx['name'], ",@", file_path)
         tim0, fss = '1994-01-01', file_path + code + '.csv'
         xd0, xd = [], []
-        xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
+        if zsys.use_mysql:
+            xfg = engine.has_table(code)
+        else:
+            xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
         if xfg:
-            xd0, tim0 = df_rdcsv_tim0(fss, 'date', tim0)
+            xd0 = pd.read_sql_table(code, engine) if zsys.use_mysql else pd.read_csv(fss, index_col=False, encoding='utf8')
+            xd0, tim0 = df_rdcsv_tim0(xd0, 'date', tim0)
 
         print('\t', xfg, typ, fss, ",", tim0)
     # -----------
         try:
-            xdk = ts.get_k_data(code, index=False, start=tim0, end=None, ktype=typ);
+            xdk = ts.get_k_data(code, index=False, start=tim0, end=None, ktype=typ)
             xd = xdk
         # -------------
             if len(xd) > 0:
                 xd = xdk[zsys.ohlcDVLst]
                 xd = df_xappend(xd, xd0, 'date')
                 xd = xd.sort_values(['date'], ascending=False)
-                xd.to_csv(fss, index=False, encoding='utf8')
+                if zsys.use_mysql:
+                    xd.to_sql(code, engine, if_exists='replace', index=False)
+                else:
+                    xd.to_csv(fss, index=False, encoding='utf8')
 
         except IOError:
-            pass  # skip,error
+            print('error')
+            # pass  # skip,error
 
 
 def index_update(typ='D'):
-    '''
+    """
     Update your local index data csv
     :param typ:
         typ: data frequency 'D'-daily, 'M'-monthly, 'Y'-yearly,
                             '5'-every 5 minutes, same as '15','30','60'
     :return: Nothing
-    '''
+    """
     df_all_index_daily = dt.index_stock_info()
+    if zsys.use_mysql:
+        db = 'index_' + typ
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
+                                                                                zsys.mysql_password,
+                                                                                zsys.mysql_host,
+                                                                                zsys.mysql_port, db))
     n = len(df_all_index_daily['index_code'])
     # for i,xc in enumerate(stkPool['code']):
     file_path = zsys.rdatCNX if typ == 'D' else zsys.rdatMin0 + 'm' + '0'*(2-len(typ)) + typ + '/inx/'
@@ -169,21 +192,28 @@ def index_update(typ='D'):
         print("\n", i, "/", n, '@', code, rx['display_name'], ",@", file_path)
         tim0, fss = '1994-01-01', file_path + code + '.csv'
         xd0, xd = [], []
-        xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
+        if zsys.use_mysql:
+            xfg = engine.has_table(code)
+        else:
+            xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
         if xfg:
-            xd0, tim0 = df_rdcsv_tim0(fss, 'date', tim0)
+            xd0 = pd.read_sql_table(code, engine) if zsys.use_mysql else pd.read_csv(fss, index_col=False, encoding='utf8')
+            xd0, tim0 = df_rdcsv_tim0(xd0, 'date', tim0)
 
         print('\t', xfg, typ, fss, ",", tim0)
         # -----------
         try:
-            xdk = ts.get_k_data(code, index=True, start=tim0, end=None, ktype=typ);
+            xdk = ts.get_k_data(code, index=True, start=tim0, end=None, ktype=typ)
             xd = xdk
             # -------------
             if len(xd) > 0:
                 xd = xdk[zsys.ohlcDVLst]
                 xd = df_xappend(xd, xd0, 'date')
                 xd = xd.sort_values(['date'], ascending=False)
-                xd.to_csv(fss, index=False, encoding='utf8')
+                if zsys.use_mysql:
+                    xd.to_sql(code, engine, if_exists='replace', index=False)
+                else:
+                    xd.to_csv(fss, index=False, encoding='utf8')
 
         except IOError:
             pass  # skip,error
@@ -193,9 +223,9 @@ def index_update(typ='D'):
 
 
 
-def df_rdcsv_tim0(fss, ksgn, tim0):
+def df_rdcsv_tim0(xd0, ksgn, tim0):
     # xd0= pd.read_csv(fss,index_col=False,encoding='gbk')
-    xd0 = pd.read_csv(fss, index_col=False, encoding='utf8')
+    # xd0 = pd.read_csv(fss, index_col=False, encoding='utf8')
     # print('\nxd0\n',xd0.head())
     if (len(xd0) > 0):
         # xd0=xd0.sort_index(ascending=False);
@@ -229,10 +259,63 @@ def df_xappend(df, df0, ksgn, num_round=3, vlst=zsys.ohlcDVLst):
     return df2
 
 
+def last_workday():
+    i = 1
+    while not chinese_calendar.is_workday(datetime.date.today()-datetime.timedelta(days=i)) and \
+        datetime.date.weekday(datetime.date.today()-datetime.timedelta(days=i)) > 5:
+        i += 1
+    return ((datetime.datetime.now()-datetime.timedelta(days=i)).strftime("%Y-%m-%d"))
+
+
+def data_update():
+    """
+    Keep your local or mysql database up to date
+    Create Schemas:{'stock_D', 'stock_5', 'index_D', 'index_5'} in your database
+    :return:
+    """
+    need_update = True
+    if zsys.use_mysql:
+        db = 'index_D'
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
+                                                                                zsys.mysql_password,
+                                                                                zsys.mysql_host,
+                                                                                zsys.mysql_port, db))
+        if engine.has_table('399300') and pd.read_sql_table('399300', engine).date[0] == last_workday():
+            need_update = False
+    else:
+        path = zsys.rdatCNX + '399300.csv'
+        if os.path.exists(path) and pd.read_csv(path).date[0] == last_workday():
+            need_update = False
+    if need_update:
+        for xtye in ['D', '5']:
+            # data_update(xtye, rdat)
+            stock_update(xtye)
+            index_update(xtye)
+
+def get_data(typ, code, inx=False):
+    '''
+    :param typ: str, "D" for daily data, 'num' for data of every num minutes
+    :param code: str, China stock or index code number of length 6
+    :param inx: bool, whether the code is the number of index
+    :return: pandas.DataFrame, date&ohlcv
+    '''
+    if zsys.use_mysql:
+        db = ('index_' if inx else 'stock_') + typ
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
+                                                                                zsys.mysql_password,
+                                                                                zsys.mysql_host,
+                                                                                zsys.mysql_port, db))
+        df = pd.read_sql_table(code, engine)
+    else:
+        df = pd.read_csv((zsys.rdatCNX if inx else zsys.rdatCN) + code + '.csv')
+    return df
+
+
+
+
+
+
 if __name__ == '__main__':
-    for xtye in ['D','5']:
-        # data_update(xtye, rdat)
-        stock_update(xtye)
-        index_update(xtye)
+    data_update()
 
 

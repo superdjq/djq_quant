@@ -42,6 +42,15 @@ main_folder
 ├── trade
       └── trade_folder     
 ```  
+### Database support
+Set your Mysql database info in zsys.py to update or get data on your server
+```python
+use_mysql = True
+mysql_user = 'root'
+mysql_password = '********'
+mysql_host = '192.168.***.***'
+mysql_port = '3306'
+```
 ## Demo
 ### create a model
 ```python 
@@ -64,8 +73,8 @@ trade.daily_monitor()
 ```
 ## Todo list
 - [x] Add comments
-- [ ] Utils module
-- [ ] Data base support
+- [x] Utils module
+- [x] Data base support
 - [ ] Automatic trading module
 - [ ] Thresholds finding by RL
 - [ ] Diversified indicators

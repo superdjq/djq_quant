@@ -23,7 +23,7 @@ import os, time
 import pandas as pd
 import numpy as np
 import zsys
-from djq_data_processor import get_label
+from djq_data_processor import get_label, get_data
 from djq_talib import get_all_finanical_indicators
 import tushare as ts
 import dtshare as dt
@@ -119,7 +119,6 @@ class StcokClassifier(object):
         if not self.model_type:
             raise ValueError('You should clarify the TYPE of the Classifier!')
 
-
         if os.path.isfile(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv'):
             self.book = pd.read_csv(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv',
                                     dtype={'code': str}, encoding='GBK')
@@ -146,8 +145,6 @@ class StcokClassifier(object):
 
         if not os.path.isdir(self.BASE_DIR + self.pjNam):
             os.makedirs(self.BASE_DIR + self.pjNam)
-
-
 
     def data_prepare(self, code, drop=True, real_time=True):
         """
@@ -186,7 +183,7 @@ class StcokClassifier(object):
 
         # 数据准备
         try:
-            df = pd.read_csv(zsys.rdatCN + code + '.csv')
+            df = get_data('D', code)
         except:
             raise ValueError('Cannot find the file!')
         if real_time and df['date'][0] != time.strftime('%Y-%m-%d'):
@@ -240,7 +237,6 @@ class StcokClassifier(object):
             if n_pca:
                 x_test = pca_50.transform(x_test)
         return self.subclassifiers_transfer(code, x_train), df_train['y'].values, self.subclassifiers_transfer(code, x_test), df_test['y'].values, df_train, df_test, thresholds
-
 
     def train(self):
         """
@@ -297,8 +293,6 @@ class StcokClassifier(object):
         self.book.to_csv(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv')
         self.mlst = list(self.book['code'].values)
 
-
-
     def subclassifiers_transfer(self, code, X):
         if self.ensemble and X.shape[0]:
             if self.proba:
@@ -354,18 +348,15 @@ class StcokClassifier(object):
         return pd.read_csv(file_path, index_col=0)
 
 
-
-
-
 def profit_score(clf, X, y_true):
-    '''
+    """
     sample of customized loss function
     return the mean change when predict is right
     :param clf:
     :param X:
     :param y_true:
     :return:
-    '''
+    """
     y_pred = clf.predict(X)
     threshold = y_true.max()
     return y_true[y_pred==threshold].mean()
@@ -388,6 +379,7 @@ def fold_score(clf, x_train, y_train):
         clf.fit(x, y)
         y_valid += list(clf.predict(x_test))
     return accuracy_score(y_pred=np.array(y_valid), y_true=y_train), r2_score(y_pred=np.array(y_valid), y_true=y_train)
+
 
 if __name__ == '__main__':
     # pj = StcokClassifier('RF_target10_classify5_inx-2020sz50_loss-profit_working')

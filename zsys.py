@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- 
-'''
+"""
 The module "zsys" includes basic file path, indicator compositions
-'''
+"""
 
 
 # rdat0='/WORK/quant/TQDat/'
@@ -14,6 +14,13 @@ rdatInx=rdat0+"data/"
 rdatMin0=rdat0+"min/"
 rdatTick=rdat0+"tick/"
 rdatReal=rdat0+"real/"
+
+# Mysql info
+use_mysql = False
+mysql_user = 'root'
+mysql_password = 'djqq89djq'
+mysql_host = '192.168.1.9'
+mysql_port = '3306'
 
 
 #
