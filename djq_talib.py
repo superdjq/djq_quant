@@ -19,7 +19,7 @@ def get_all_finanical_indicators(df, freq_lst=(5, 15, 30), divided_by_close=Fals
     if not isinstance(df, pd.DataFrame):
         raise TypeError('The type of df to be processed should be pandas.DataFrame!')
 
-    df = df.sort_index(ascending=False)
+    df = df.sort_values('date', ascending=True)
     df.loc[df.high==df.low, 'high'] = df.loc[df.high==df.low, 'high'] + 1e-8
 
 

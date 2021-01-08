@@ -16,11 +16,11 @@ rdatTick=rdat0+"tick/"
 rdatReal=rdat0+"real/"
 
 # Mysql info
-use_mysql = False
+use_mysql = True
 mysql_user = 'root'
-mysql_password = 'djqq89djq'
-mysql_host = '192.168.1.9'
-mysql_port = '3306'
+mysql_password = 'admin'
+mysql_host = '192.168.1.4'
+mysql_port = '3309'
 
 
 #
