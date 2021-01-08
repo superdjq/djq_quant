@@ -183,7 +183,7 @@ class StcokClassifier(object):
 
         # 数据准备
         try:
-            df = get_data('D', code)
+            df = get_data(code)
         except:
             raise ValueError('Cannot find the file!')
         if real_time and df['date'][0] != time.strftime('%Y-%m-%d'):

@@ -70,7 +70,7 @@ class Trader(object):
         df_env = pd.DataFrame(index=self.df_pred.index)
         for name, path in self.model_names.items():
             try:
-                df_stk = djq_data_processor.get_data('D', name, inx=True)
+                df_stk = djq_data_processor.get_data(name, inx=True)
             except:
                 raise ValueError('Cannot find the file!')
             df_stk = df_stk[['date', 'close']]
