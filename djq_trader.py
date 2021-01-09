@@ -13,12 +13,11 @@ import numpy as np
 import pandas as pd
 import time, os, sys
 import djq_data_processor
-import chinese_calendar, datetime
 import dtshare
 
 
 class Trader(object):
-    BASE_DIR = 'trade/'
+    BASE_DIR = os.path.abspath('.') + '/trade/'
     COMM_PCT = 0.001
 
     def __init__(self, name):
@@ -68,9 +67,9 @@ class Trader(object):
 
     def initial_env(self):
         df_env = pd.DataFrame(index=self.df_pred.index)
-        for name, path in self.model_names.items():
+        for name, model_name in self.model_names.items():
             try:
-                df_stk = djq_data_processor.get_data(name, inx=True)
+                df_stk = djq_data_processor.get_data(StcokClassifier(model_name).inx, inx=True)
             except:
                 raise ValueError('Cannot find the file!')
             df_stk = df_stk[['date', 'close']]
@@ -169,7 +168,7 @@ class Trader(object):
         :return: None
         """
         for name, model_name in self.model_names.items():
-            res = StcokClassifier(model_name).daily_predict()
+            res = StcokClassifier(model_name).daily_predict(real_time=True)
             score = self.cls_to_weighted_pct(res, model_name)[-1]
 
             self.print_to_file(time.strftime('%Y-%m-%d %H:%M:%S') + " score for project:{} is: {}".format(model_name, score))
@@ -185,8 +184,8 @@ class Trader(object):
         print(info)
 
 
-if __name__ == '__main__' and chinese_calendar.is_workday(datetime.date.today()):
-    trade = Trader('test')
+if __name__ == '__main__':# and chinese_calendar.is_workday(datetime.date.today()):
+    trade = Trader('main_etf_trader')
     while time.localtime().tm_hour < 16:
 
         trade.daily_monitor()

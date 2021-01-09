@@ -22,7 +22,7 @@ the basic keywords:
 import os, time
 import pandas as pd
 import numpy as np
-import zsys
+import zsys, os
 from djq_data_processor import get_label, get_data
 from djq_talib import get_all_finanical_indicators
 import tushare as ts
@@ -40,8 +40,7 @@ from joblib import Parallel, delayed
 
 
 class StcokClassifier(object):
-    # BASE_DIR = 'E:\\WORK\\quant\\model\\'
-    BASE_DIR = 'model/'
+    BASE_DIR = os.path.abspath('.') + '/model/'
     # Add your algorithm in BASE_MODELS
     BASE_MODELS = {'SVM': SVC(kernel='rbf', class_weight='balanced', probability=True),
                     'RF': RandomForestClassifier(criterion='gini',
@@ -123,8 +122,8 @@ class StcokClassifier(object):
 
         if os.path.isfile(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv'):
             self.book = pd.read_csv(StcokClassifier.BASE_DIR + 'book/' + self.pjNam + '_book.csv',
-                                    dtype={'code': str}, encoding='GBK')
-            self.mlst = list(self.book['code'].values)
+                                    dtype={'code': str}, encoding='GBK', index_col=0)
+            self.mlst = ['0'*max(0, 6-len(code)) + code for code in self.book['code'].values]
         else:
             if self.ensemble:
                 score = pd.DataFrame()
@@ -134,7 +133,7 @@ class StcokClassifier(object):
                 score['total'] = score.sum(axis=1)
                 score = score.sort_values('total')
                 self.mlst = list(score.index)[:300]
-                score.to_csv('tmp/rank.csv')
+                # score.to_csv('tmp/rank.csv')
             else:
                 # finx = 'F://Dat/data/stk_' + self.inx + '.csv'
                 # inx_df = pd.read_csv(finx, dtype={'code': str}, encoding='GBK')
@@ -188,14 +187,14 @@ class StcokClassifier(object):
             df = get_data(code)
         except:
             raise ValueError('Cannot find the file!')
-        if real_time and df['date'][0] != time.strftime('%Y-%m-%d'):
+        if real_time and df['date'][-1] != time.strftime('%Y-%m-%d'):
             open_time = time.strptime(time.strftime('%Y-%m-%d') + ' 09:30:00', '%Y-%m-%d %H:%M:%S')
             now = time.strptime(time.strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
             diff = min(max(0, time.mktime(now) - time.mktime(open_time)), 2 * 60 * 60)
             open_time = time.strptime(time.strftime('%Y-%m-%d') + ' 13:00:00', '%Y-%m-%d %H:%M:%S')
             diff += min(max(0, time.mktime(now) - time.mktime(open_time)), 2 * 60 * 60)
             new = ts.get_realtime_quotes([code])
-            if diff and float(new['open'][0]):
+            if new['date'][0] != list(df['date'])[-1] and diff and float(new['open'][0]):
                 time_multiple = 4 * 60 * 60 / diff
                 line = pd.Series(dict(zip(['date', 'open', 'high', 'low', 'close', 'volume'],
                                       [time.strftime('%Y-%m-%d'), float(new['open'][0]), float(new['high'][0]),
@@ -334,7 +333,7 @@ class StcokClassifier(object):
         df_test[code] = model.predict(x_test)
         return df_test[code]
 
-    def daily_predict(self, train_result=False, real_time=True):
+    def daily_predict(self, train_result=False, real_time=False):
         today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
         folder = StcokClassifier.BASE_DIR + 'result/' + today + '/' + self.pjNam
         if not os.path.isdir(folder):
@@ -388,8 +387,8 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                 'ensemble_ADA_target30_classify5_inx-399300_loss-r2_proba_2021'
+                 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        pj.train()
-        #pj.daily_predict()
+        #pj.train()
+        pj.daily_predict()
