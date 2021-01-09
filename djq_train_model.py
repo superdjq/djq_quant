@@ -85,6 +85,8 @@ class StcokClassifier(object):
                         if not line.startswith('#') and '_' in line:
                             sub_pj = line.replace('\n', '')
                             self.subclassifiers[sub_pj] = StcokClassifier(sub_pj)
+                            if self.subclassifiers[sub_pj].book.empty:
+                                self.subclassifiers[sub_pj].train()
             elif part.startswith('target'):
                 self.target_day = int(part[6:])
             elif part.startswith('classify'):
@@ -386,17 +388,8 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                 #'RF_target30_classify5_inx-cyb_loss-r2_working_2021',
-                 # 'RF_target30_classify5_inx-cyb_loss-f1_working_2021',
-                 # 'RF_target30_classify5_inx-cyb_loss-profit_working_2021',
-                 #'ET_target30_classify5_inx-cyb_loss-r2_working_2021',
-                 #'ET_target30_classify5_inx-cyb_loss-f1_working_2021',
-                 #'ET_target30_classify5_inx-cyb_loss-profit_working_2021',
-                 'SVM_target30_classify5_inx-399006_loss-r2_2021',
-                 #'SVM_target30_classify5_inx-cyb_loss-f1_working_2021',
-                 #'SVM_target30_classify5_inx-cyb_loss-profit_working_2021',
-                 #'ensemble_ADA_target30_classify5_inx-cyb_loss-r2_proba_working_2021'
+                 'ensemble_ADA_target30_classify5_inx-399300_loss-r2_proba_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        #pj.train()
-        pj.daily_predict()
+        pj.train()
+        #pj.daily_predict()

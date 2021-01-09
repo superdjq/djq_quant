@@ -13,7 +13,7 @@ import zsys
 from sklearn import preprocessing
 from sqlalchemy import create_engine
 import datetime, chinese_calendar
-from djq_talib import get_all_finanical_indicators
+
 
 def prepare_single_df_to_lstm(df, xlst, window=30, classify=(2, 0), target_day=5, split_date='2019-01-01', noclose=True):
     df = djq_talib.get_all_finanical_indicators(df, divided_by_close=noclose)
@@ -164,7 +164,7 @@ def stock_update(df_all_stock_daily=None):
                 else:
                     if xfg:
                         if len(xdk) > 1:
-                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a')
+                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a', header=0)
                     else:
                         xdk.to_csv(fss, index=False, encoding='utf8')
 
@@ -231,7 +231,7 @@ def index_update():
                 else:
                     if xfg:
                         if len(xdk) > 1:
-                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a')
+                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a', header=0)
                     else:
                         xdk.to_csv(fss, index=False, encoding='utf8')
 
@@ -307,14 +307,7 @@ def get_data(code, inx=False):
 
 
 if __name__ == '__main__':
-    # data_update()
-    df = get_data('000002')
-    # df = pd.read_csv('data/day/stk/000002.csv')
-    df = df.sort_values('date', ascending=False)
-    print(get_all_finanical_indicators(df))
-    df = pd.read_csv('data/day/stk/000002.csv')
-    print(get_all_finanical_indicators(df))
-    df = get_all_finanical_indicators(df)
-    # print(df)
+    stock_update()
+    # index_update()
 
 
