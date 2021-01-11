@@ -249,7 +249,7 @@ def index_update():
 def last_workday():
     i = 1
     while not chinese_calendar.is_workday(datetime.date.today()-datetime.timedelta(days=i)) and \
-        datetime.date.weekday(datetime.date.today()-datetime.timedelta(days=i)) > 5:
+        datetime.date.weekday(datetime.date.today()-datetime.timedelta(days=i)) > 4:
         i += 1
     return ((datetime.datetime.now()-datetime.timedelta(days=i)).strftime("%Y-%m-%d"))
 

@@ -51,7 +51,6 @@ class Trader(object):
             self.create_book()
         self.book = pd.read_csv(self.BASE_DIR + self.name + '/book.csv', index_col=0)
         self.pos = dict(self.book.iloc[-1])
-
         self.update()
 
     def initial_pred(self):
@@ -125,8 +124,9 @@ class Trader(object):
         Change your real trade position as the result shows
         :return: None
         """
-        if len(self.book) == len(self.df_pred):
+        if self.book.index.values[-1] == self.df_pred.index.values[-1]:
             self.show_pos()
+            self.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
             return
         for i in range(len(self.book), len(self.df_pred)):
             date = self.df_pred.index[i]

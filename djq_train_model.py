@@ -187,7 +187,7 @@ class StcokClassifier(object):
             df = get_data(code)
         except:
             raise ValueError('Cannot find the file!')
-        if real_time and df['date'][-1] != time.strftime('%Y-%m-%d'):
+        if real_time and list(df['date'])[-1] != time.strftime('%Y-%m-%d'):
             open_time = time.strptime(time.strftime('%Y-%m-%d') + ' 09:30:00', '%Y-%m-%d %H:%M:%S')
             now = time.strptime(time.strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
             diff = min(max(0, time.mktime(now) - time.mktime(open_time)), 2 * 60 * 60)
