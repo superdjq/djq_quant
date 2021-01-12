@@ -1,3 +1,7 @@
+"""
+module 'djq_talib' calculates a variety of indicators like 'MA', 'ROC', 'bollinger band'...
+with the help of lib talib
+"""
 import talib as ta
 import pandas as pd
 import numpy as np
@@ -5,10 +9,17 @@ import zsys
 
 
 def get_all_finanical_indicators(df, freq_lst=(5, 15, 30), divided_by_close=False):
+    """
+    :param df: instance of pandas.DataFrame, with columns {'open', 'close', 'high', 'low', 'volume'}
+    :param freq_lst: a list of indicator parameters which you want to use in your model,
+                    the most common parameter like 14, 28, 252...
+    :param divided_by_close: Set True to let all price indicators as a pct form of close price
+    :return: pandas.DataFrame with all indicators
+    """
     if not isinstance(df, pd.DataFrame):
         raise TypeError('The type of df to be processed should be pandas.DataFrame!')
 
-    df = df.sort_index(ascending=False)
+    df = df.sort_values('date', ascending=True)
     df.loc[df.high==df.low, 'high'] = df.loc[df.high==df.low, 'high'] + 1e-8
 
 
@@ -45,7 +56,11 @@ def calc_hurst(value):
     return poly[0] * 2.0
 
 def get_stockchart_indicators(df):
-    # Indicators recommanded by stockcharts
+    """
+    Calculate the most common used indicators in financial analysis
+    :param df: pandas.DataFrame with {'open', 'close', 'high', 'low', 'volume'} and index == date
+    :return: pandas.DataFrame
+    """
     # Bollinger Bands
     df['BBANDS_20_UP'], df['BBANDS_20_MID'], df['BBANDS_20_LOW'] = ta.BBANDS(df.close, timeperiod=20, nbdevup=2,
                                                                              nbdevdn=2, matype=0)
@@ -255,6 +270,11 @@ def get_stockchart_indicators(df):
     df['WILLR_14'] = ta.WILLR(df.high, df.low, df.close, timeperiod=14)
 
 def get_talib_indicators(df, freq_lst=(5, 15, 30), divided_by_close=False):
+    """
+    Additional indicators with different indicator parameters customized
+    :param df: pandas.DataFrame with {'open', 'close', 'high', 'low', 'volume'} and index == date
+    :return: pandas.DataFrame
+    """
     for n in freq_lst:
         # Overlap Studies Functions
         #BBANDS
@@ -663,7 +683,7 @@ def get_last_data(df):
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('TQDat/day/stk/600016.csv')
+    df = pd.read_csv(zsys.rdatCN + '600016.csv')
     df = get_all_finanical_indicators(df)
-    df.to_csv('tmp/data.csv')
+    print(df.head())
 

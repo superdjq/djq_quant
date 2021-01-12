@@ -1,15 +1,25 @@
+"""
+The module "djq_trader" helpers to build a trade manager to manage the portfolio of
+several projects trained by module "djq_train_model"
+You should set a config file in folder "/trade/manager_name", include project names,
+weights of the portfolio, up/down threshold, which can be calculated by utils
+After manager initialized, a book will be created in "/trade/manager_name", which records
+daily positions following the strategy, you can set pos to 0, and total profit to 1 when
+you start to make real deal
+"""
 from djq_train_model import StcokClassifier
 #from djq_risk_control import cal_weights, position_control
 import numpy as np
 import pandas as pd
 import time, os, sys
 import djq_data_processor
-import chinese_calendar, datetime
 import dtshare
 
+
 class Trader(object):
-    BASE_DIR = 'trade/'
+    BASE_DIR = os.path.abspath('.') + '/trade/'
     COMM_PCT = 0.001
+
     def __init__(self, name):
         self.name = name
         sys.path.append(self.BASE_DIR + self.name)
@@ -19,51 +29,50 @@ class Trader(object):
             raise ImportError('Cannot find the config file')
         self.weights = config.weights
         self.model_names = config.model_names
-        self.data_path = config.data_path
+        self.thresholds_u = config.thresholds_u
+        self.thresholds_d = config.thresholds_d
+        self.steps = config.steps
         assert set(self.weights.keys()) == set(self.model_names.keys())
         self.securities = set(self.model_names.keys())
         self.report = self.BASE_DIR + self.name + '/report.log'
         # 爬取当天开盘盘面信息，主要获取市值用于加权
         print('Start crawling market infomation')
         self.mkt = dtshare.stock_zh_a_spot()
+        time.sleep(60)
         # self.mkt = pd.read_csv('E:\\WORK\\quant\\tmp\\mkt.csv')
+        djq_data_processor.data_update()
         self.mkt = self.mkt.set_index('code')
+        # create a book of estimated result with local data
         self.df_pred = self.initial_pred()
+        # create a environment which tells daily stock/index change
         self.df_return = self.initial_env()
         assert len(self.df_pred) == len(self.df_return)
-        self.thresholds_u = config.thresholds_u
-        self.thresholds_d = config.thresholds_d
-        self.steps = config.steps
         if not os.path.isfile(self.BASE_DIR + self.name + '/book.csv'):
             self.create_book()
         self.book = pd.read_csv(self.BASE_DIR + self.name + '/book.csv', index_col=0)
         self.pos = dict(self.book.iloc[-1])
-        if self.last_workday() != self.book.index[-1]:
-            for xtye in ['D', '5']:
-                pass
-                #djq_data_processor.stock_update(xtye)
-                #djq_data_processor.index_update(xtye)
-            self.update()
-
-
-
+        self.update()
 
     def initial_pred(self):
         df_pred = pd.DataFrame()
         df_index = None
         for name, model_name in self.model_names.items():
-            df = StcokClassifier(model_name).daily_predict()
+            df = StcokClassifier(model_name).daily_predict(real_time=False)
             df_index = df.index
             df_pred.loc[:, name] = self.cls_to_weighted_pct(df, model_name)
         if df_index is not None:
             df_pred = df_pred.set_index(df_index)
-        print(df_pred)
         return df_pred
 
     def initial_env(self):
         df_env = pd.DataFrame(index=self.df_pred.index)
-        for name, path in self.data_path.items():
-            df_stk = pd.read_csv(path, index_col=0, usecols=['date', 'close'])
+        for name, model_name in self.model_names.items():
+            try:
+                df_stk = djq_data_processor.get_data(StcokClassifier(model_name).inx, inx=True)
+            except:
+                raise ValueError('Cannot find the file!')
+            df_stk = df_stk[['date', 'close']]
+            df_stk = df_stk.set_index('date')
             df_stk = df_stk.rename(columns={'close': name})
             df_stk = df_stk.sort_values('date')
             df_stk = df_stk.pct_change() + 1
@@ -89,6 +98,11 @@ class Trader(object):
         self.book.to_csv(self.BASE_DIR + self.name + '/book.csv')
 
     def pos_change(self, signal, ret):
+        """
+        :param signal: daily estimated change of each project
+        :param ret: the real change of each stock of last trading day
+        :return: None, record daily position change and cumulative profit change in book,
+        """
         self.print_to_file(str(signal))
         res = 0
         for stk in self.securities:
@@ -103,11 +117,16 @@ class Trader(object):
         self.pos['cum_profit'] -= sum([abs(self.pos[stk] - tmp[stk]) for stk in self.securities]) * self.COMM_PCT * \
                                   self.pos['cum_profit']
 
-
-
     def update(self):
-        if len(self.book) == len(self.df_pred):
+        """
+        when first run the manage process in a day, update the current position and
+        profit after download data of yesterday
+        Change your real trade position as the result shows
+        :return: None
+        """
+        if self.book.index.values[-1] == self.df_pred.index.values[-1]:
             self.show_pos()
+            self.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
             return
         for i in range(len(self.book), len(self.df_pred)):
             date = self.df_pred.index[i]
@@ -123,6 +142,13 @@ class Trader(object):
         self.book.to_csv(self.BASE_DIR + self.name + '/book.csv')
 
     def cls_to_weighted_pct(self, df, pjNam):
+        """
+        The estimated result is a class interval number, change the class to corresponding pct change
+        Calculate the index pct change using the market value weights
+        :param df: pandas.DataFrame, estimated result
+        :param pjNam: str, project name
+        :return: float, estimated change of index
+        """
         book = StcokClassifier(pjNam).book
         df2 = df.astype(float)
         for stk in df.columns:
@@ -135,8 +161,14 @@ class Trader(object):
                 self.print_to_file('stk:{} with position:{}'.format(stk, self.book.iloc[-1][stk]))
 
     def daily_monitor(self):
+        """
+        Monitor real time data when market is open
+        When result breaks the threshold, show position change warning as a possibility of tomorrow position change,
+        so you can prepare in advance
+        :return: None
+        """
         for name, model_name in self.model_names.items():
-            res = StcokClassifier(model_name).daily_predict()
+            res = StcokClassifier(model_name).daily_predict(real_time=True)
             score = self.cls_to_weighted_pct(res, model_name)[-1]
 
             self.print_to_file(time.strftime('%Y-%m-%d %H:%M:%S') + " score for project:{} is: {}".format(model_name, score))
@@ -146,23 +178,14 @@ class Trader(object):
                 elif score <= self.thresholds_d[name] and self.pos[name] > 0:
                     self.print_to_file(' You should sell this ETF to pos: {}%'.format(100*(max(0,self.pos[name]-self.weights[name]/self.steps[name]))))
 
-
     def print_to_file(self, info):
         with open(self.report, 'a+') as f:
             f.write(info + '\n')
         print(info)
 
-    def last_workday(self):
-        i = 1
-        while not chinese_calendar.is_workday(datetime.date.today()-datetime.timedelta(days=i)):
-            i += 1
-        return ((datetime.datetime.now()-datetime.timedelta(days=i)).strftime("%Y-%m-%d"))
 
-
-
-
-if __name__ == '__main__' and chinese_calendar.is_workday(datetime.date.today()):
-    trade = Trader('test')
+if __name__ == '__main__':# and chinese_calendar.is_workday(datetime.date.today()):
+    trade = Trader('main_etf_trader')
     while time.localtime().tm_hour < 16:
 
         trade.daily_monitor()
