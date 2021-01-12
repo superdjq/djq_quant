@@ -2,10 +2,12 @@
 """
 The module "zsys" includes basic file path, indicator compositions
 """
+import os
 
 
 # rdat0='/WORK/quant/TQDat/'
-rdat0 = 'data/'
+
+rdat0 = os.path.abspath('.') + '/data/'
 rdatCN0=rdat0+"day/"
 rdatCN=rdatCN0+"stk/"
 rdatCNX=rdatCN0+"inx/"

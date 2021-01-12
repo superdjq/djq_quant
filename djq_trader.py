@@ -13,12 +13,11 @@ import numpy as np
 import pandas as pd
 import time, os, sys
 import djq_data_processor
-import chinese_calendar, datetime
 import dtshare
 
 
 class Trader(object):
-    BASE_DIR = 'trade/'
+    BASE_DIR = os.path.abspath('.') + '/trade/'
     COMM_PCT = 0.001
 
     def __init__(self, name):
@@ -39,7 +38,7 @@ class Trader(object):
         # 爬取当天开盘盘面信息，主要获取市值用于加权
         print('Start crawling market infomation')
         self.mkt = dtshare.stock_zh_a_spot()
-        time.sleep(20)
+        time.sleep(60)
         # self.mkt = pd.read_csv('E:\\WORK\\quant\\tmp\\mkt.csv')
         djq_data_processor.data_update()
         self.mkt = self.mkt.set_index('code')
@@ -52,7 +51,6 @@ class Trader(object):
             self.create_book()
         self.book = pd.read_csv(self.BASE_DIR + self.name + '/book.csv', index_col=0)
         self.pos = dict(self.book.iloc[-1])
-
         self.update()
 
     def initial_pred(self):
@@ -68,9 +66,9 @@ class Trader(object):
 
     def initial_env(self):
         df_env = pd.DataFrame(index=self.df_pred.index)
-        for name, path in self.model_names.items():
+        for name, model_name in self.model_names.items():
             try:
-                df_stk = djq_data_processor.get_data(name, inx=True)
+                df_stk = djq_data_processor.get_data(StcokClassifier(model_name).inx, inx=True)
             except:
                 raise ValueError('Cannot find the file!')
             df_stk = df_stk[['date', 'close']]
@@ -126,8 +124,9 @@ class Trader(object):
         Change your real trade position as the result shows
         :return: None
         """
-        if len(self.book) == len(self.df_pred):
+        if self.book.index.values[-1] == self.df_pred.index.values[-1]:
             self.show_pos()
+            self.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
             return
         for i in range(len(self.book), len(self.df_pred)):
             date = self.df_pred.index[i]
@@ -169,7 +168,7 @@ class Trader(object):
         :return: None
         """
         for name, model_name in self.model_names.items():
-            res = StcokClassifier(model_name).daily_predict()
+            res = StcokClassifier(model_name).daily_predict(real_time=True)
             score = self.cls_to_weighted_pct(res, model_name)[-1]
 
             self.print_to_file(time.strftime('%Y-%m-%d %H:%M:%S') + " score for project:{} is: {}".format(model_name, score))
@@ -185,8 +184,8 @@ class Trader(object):
         print(info)
 
 
-if __name__ == '__main__' and chinese_calendar.is_workday(datetime.date.today()):
-    trade = Trader('test')
+if __name__ == '__main__':# and chinese_calendar.is_workday(datetime.date.today()):
+    trade = Trader('main_etf_trader')
     while time.localtime().tm_hour < 16:
 
         trade.daily_monitor()
