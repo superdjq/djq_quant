@@ -38,7 +38,7 @@ class Trader(object):
         # 爬取当天开盘盘面信息，主要获取市值用于加权
         print('Start crawling market infomation')
         self.mkt = dtshare.stock_zh_a_spot()
-        time.sleep(20)
+        time.sleep(60)
         # self.mkt = pd.read_csv('E:\\WORK\\quant\\tmp\\mkt.csv')
         djq_data_processor.data_update()
         self.mkt = self.mkt.set_index('code')

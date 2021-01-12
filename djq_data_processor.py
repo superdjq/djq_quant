@@ -308,6 +308,6 @@ def get_data(code, inx=False):
 
 if __name__ == '__main__':
     stock_update()
-    # index_update()
+    index_update()
 
 
