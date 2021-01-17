@@ -14,6 +14,8 @@ import pandas as pd
 import time, os, sys
 import djq_data_processor
 import dtshare
+import tushare as ts
+import djq_crawler
 
 
 class Trader(object):
@@ -31,6 +33,8 @@ class Trader(object):
         self.model_names = config.model_names
         self.thresholds_u = config.thresholds_u
         self.thresholds_d = config.thresholds_d
+        self.etf_names = config.etf_names
+        self.total_cash = config.total_cash
         self.steps = config.steps
         assert set(self.weights.keys()) == set(self.model_names.keys())
         self.securities = set(self.model_names.keys())
@@ -44,6 +48,7 @@ class Trader(object):
         self.mkt = self.mkt.set_index('code')
         # create a book of estimated result with local data
         self.df_pred = self.initial_pred()
+       #  self.df_pred = pd.read_csv('E:/WORK/quant/tmp/new_model_threshold2.csv',index_col=0)
         # create a environment which tells daily stock/index change
         self.df_return = self.initial_env()
         assert len(self.df_pred) == len(self.df_return)
@@ -66,16 +71,16 @@ class Trader(object):
 
     def initial_env(self):
         df_env = pd.DataFrame(index=self.df_pred.index)
-        for name, model_name in self.model_names.items():
+        for name, etf_name in self.etf_names.items():
             try:
-                df_stk = djq_data_processor.get_data(StcokClassifier(model_name).inx, inx=True)
+                df_stk = djq_data_processor.get_data(etf_name, inx=False)
             except:
                 raise ValueError('Cannot find the file!')
             df_stk = df_stk[['date', 'close']]
             df_stk = df_stk.set_index('date')
             df_stk = df_stk.rename(columns={'close': name})
             df_stk = df_stk.sort_values('date')
-            df_stk = df_stk.pct_change() + 1
+            # df_stk = df_stk.pct_change() + 1
             df_env = df_env.join(df_stk)
         df_env = df_env.fillna(method='ffill')
         df_env = df_env.fillna(method='backfill')
@@ -83,39 +88,58 @@ class Trader(object):
         return df_env
 
     def create_book(self):
-        self.book = pd.DataFrame(index=self.df_pred.index, columns=list(self.securities) + ['cum_profit'])
-        self.pos = dict(zip(self.securities, [0] * len(self.securities)))
-        self.pos['cum_profit'] = 1
+
+        self.pos = dict()
+        self.pos['total'] = self.total_cash
+        for stk in self.securities:
+            self.pos[stk+'_value'] = self.total_cash * self.weights[stk]
+            self.pos[stk+'_shares'] = 0
+            self.pos[stk+'_cash'] = self.total_cash * self.weights[stk]
+            self.pos[stk+'_pos'] = 0
+        self.book = pd.DataFrame(index=self.df_pred.index, columns=self.pos.keys())
         for i in range(len(self.df_pred)):
             self.pos_change(dict(self.df_pred.iloc[i]), dict(self.df_return.iloc[i]))
-            # self.cal_profit(dict(self.df_return.iloc[i]))
-            # self.pos['cum_profit'] -= sum(abs(pd.Series(self.pos)[self.securities] - self.book.iloc[i - 1, :len(self.securities)])) * self.COMM_PCT
             self.book.iloc[i] = self.pos
-        # self.book.iloc[0]['cum_profit'] = 1 - sum(self.book.iloc[0,:len(self.securities)]) * self.COMM_PCT
-        #for i in range(1,len(self.book)):
-            #self.book.iloc[i]['cum_profit'] = self.cal_profit(dict(self.df_return.iloc[i])) \
-        #                                        - sum(abs(self.book.iloc[i,:len(self.securities)]-self.book.iloc[i-1,:len(self.securities)])) * self.COMM_PCT
         self.book.to_csv(self.BASE_DIR + self.name + '/book.csv')
 
-    def pos_change(self, signal, ret):
+    def pos_change(self, signal, ret, execute_trade=False):
         """
         :param signal: daily estimated change of each project
         :param ret: the real change of each stock of last trading day
+        :param execute_trade:
         :return: None, record daily position change and cumulative profit change in book,
         """
         self.print_to_file(str(signal))
-        res = 0
+        self.pos['total'] = 0
         for stk in self.securities:
-            res += self.pos[stk] * ret[stk] + (self.weights[stk] - self.pos[stk])
-        self.pos['cum_profit'] *= res
-        tmp = self.pos.copy()
+            self.pos[stk+'_value'] = self.pos[stk+'_cash'] + self.pos[stk+'_shares'] * ret[stk]
         for stk in self.securities:
-            if signal[stk] >= self.thresholds_u[stk]:
-                self.pos[stk] = min(self.pos[stk] + self.weights[stk] / self.steps[stk], self.weights[stk])
-            elif signal[stk] <= self.thresholds_d[stk]:
-                self.pos[stk] = max(self.pos[stk] - self.weights[stk] / self.steps[stk], 0)
-        self.pos['cum_profit'] -= sum([abs(self.pos[stk] - tmp[stk]) for stk in self.securities]) * self.COMM_PCT * \
-                                  self.pos['cum_profit']
+            if signal[stk] >= self.thresholds_u[stk] and self.pos[stk+'_pos'] < self.steps[stk]:
+                self.pos[stk+'_pos'] += 1
+                total_stock = self.pos[stk+'_value'] * self.pos[stk+'_pos'] / self.steps[stk]
+                buy_shares = max(0, (total_stock // (ret[stk] * 100)) * 100 - self.pos[stk+'_shares'])
+                self.pos[stk + '_shares'] += buy_shares
+                self.pos[stk+'_cash'] -= buy_shares * ret[stk] * (1 + self.COMM_PCT)
+                self.pos[stk+'_value'] -= buy_shares * ret[stk] * self.COMM_PCT
+                if buy_shares and execute_trade:
+                    crawler = djq_crawler.Crawler()
+                    crawler.buy(self.etf_names[stk], buy_shares)
+                    crawler.close()
+
+            elif signal[stk] <= self.thresholds_d[stk] and self.pos[stk+'_pos'] > 0:
+                self.pos[stk + '_pos'] -= 1
+                total_stock = self.pos[stk + '_value'] * self.pos[stk + '_pos'] / self.steps[stk]
+                sell_shares = max(0, self.pos[stk + '_shares'] - (total_stock // (ret[stk] * 100)) * 100)
+                self.pos[stk + '_shares'] -= sell_shares
+                self.pos[stk + '_cash'] += sell_shares * ret[stk] * (1 - self.COMM_PCT)
+                self.pos[stk + '_value'] -= sell_shares * ret[stk] * self.COMM_PCT
+                if sell_shares and execute_trade:
+                    crawler = djq_crawler.Crawler()
+                    crawler.sell(self.etf_names[stk], sell_shares)
+                    crawler.close()
+            self.pos['total'] += self.pos[stk+'_value']
+
+
 
     def update(self):
         """
@@ -126,19 +150,21 @@ class Trader(object):
         """
         if self.book.index.values[-1] == self.df_pred.index.values[-1]:
             self.show_pos()
-            self.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
+            self.print_to_file('--------------------------------------------------------------------'
+                               '----------------------------------------------------------------------')
             return
         for i in range(len(self.book), len(self.df_pred)):
             date = self.df_pred.index[i]
             self.print_to_file('Position Update for trade: {} on date: {}'.format(self.name, date))
-            self.pos_change(dict(self.df_pred.iloc[i]), dict(self.df_return.iloc[i]))
+            self.pos_change(dict(self.df_pred.iloc[i]), dict(self.df_return.iloc[i]), execute_trade=True)
             # self.cal_profit(dict(self.df_return.iloc[i]))
             # self.pos['cum_profit'] -= sum(abs(pd.Series(self.pos)[self.securities] - self.book.iloc[i - 1,
             #                                                      :len(self.securities)])) * self.COMM_PCT
             self.book.loc[date] = self.pos
             self.show_pos()
-            self.print_to_file('Cumulative profit is {}'.format(self.pos['cum_profit']))
-            self.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
+            self.print_to_file('Cumulative profit is {:.2f}%'.format(100*(self.pos['total'] / self.total_cash-1)))
+            self.print_to_file('-----------------------------------------------------------------------'
+                               '-------------------------------------------------------------------')
         self.book.to_csv(self.BASE_DIR + self.name + '/book.csv')
 
     def cls_to_weighted_pct(self, df, pjNam):
@@ -158,7 +184,7 @@ class Trader(object):
     def show_pos(self):
         if len(self.book):
             for stk in self.securities:
-                self.print_to_file('stk:{} with position:{}'.format(stk, self.book.iloc[-1][stk]))
+                self.print_to_file('stk:{} with shares:{}'.format(stk, self.book.iloc[-1][stk+'_shares']))
 
     def daily_monitor(self):
         """
@@ -171,12 +197,20 @@ class Trader(object):
             res = StcokClassifier(model_name).daily_predict(real_time=True)
             score = self.cls_to_weighted_pct(res, model_name)[-1]
 
-            self.print_to_file(time.strftime('%Y-%m-%d %H:%M:%S') + " score for project:{} is: {}".format(model_name, score))
+            self.print_to_file(time.strftime('%Y-%m-%d %H:%M:%S') +
+                               " score for project:{} is: {}".format(model_name, score))
             if time.localtime().tm_hour > 12:
-                if score >= self.thresholds_u[name] and self.pos[name] < self.weights[name]:
-                    self.print_to_file(' You should buy this ETF to pos: {}%'.format(100*(self.pos[name]+self.weights[name]/self.steps[name])))
-                elif score <= self.thresholds_d[name] and self.pos[name] > 0:
-                    self.print_to_file(' You should sell this ETF to pos: {}%'.format(100*(max(0,self.pos[name]-self.weights[name]/self.steps[name]))))
+                if score >= self.thresholds_u[name] and self.pos[name+'_pos'] < self.steps[name]:
+                    etf_price = float(ts.get_realtime_quotes(self.etf_names[name]).price.values[0])
+                    total_stock = self.pos[name + '_value'] * (self.pos[name + '_pos'] + 1) / self.steps[name]
+                    buy_shares = max(0, (total_stock // (etf_price * 100)) * 100 - self.pos[name + '_shares'])
+                    if buy_shares:
+                        self.print_to_file(' You should buy this ETF {} shares'.format(buy_shares))
+                elif score <= self.thresholds_d[name] and self.pos[name+'_pos'] > 0:
+                    etf_price = float(ts.get_realtime_quotes(self.etf_names[name]).price.values[0])
+                    total_stock = self.pos[name + '_value'] * (self.pos[name + '_pos'] - 1) / self.steps[name]
+                    sell_shares = max(0, self.pos[name + '_shares'] - (total_stock // (etf_price * 100)) * 100)
+                    self.print_to_file(' You should sell this ETF {} shares'.format(sell_shares))
 
     def print_to_file(self, info):
         with open(self.report, 'a+') as f:
@@ -185,6 +219,7 @@ class Trader(object):
 
 
 if __name__ == '__main__':# and chinese_calendar.is_workday(datetime.date.today()):
+    # trade = Trader('test')
     trade = Trader('main_etf_trader')
     while time.localtime().tm_hour < 16:
 

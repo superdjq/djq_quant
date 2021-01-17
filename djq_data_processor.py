@@ -13,6 +13,8 @@ import zsys
 from sklearn import preprocessing
 from sqlalchemy import create_engine
 import datetime, chinese_calendar
+import requests
+import akshare as ak
 
 
 def prepare_single_df_to_lstm(df, xlst, window=30, classify=(2, 0), target_day=5, split_date='2019-01-01', noclose=True):
@@ -238,6 +240,58 @@ def index_update():
         except IOError:
             pass  # skip,error
 
+def etf_update():
+    """
+    Update your local index data csv
+    :param typ:
+        typ: data frequency 'D'-daily, 'M'-monthly, 'Y'-yearly,
+                            '5'-every 5 minutes, same as '15','30','60'
+    :return: Nothing
+    """
+    df_all_etf_daily = ak.fund_etf_category_sina('ETF基金')
+    if zsys.use_mysql:
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
+                                                                                zsys.mysql_password,
+                                                                                zsys.mysql_host,
+                                                                                zsys.mysql_port, 'stk'))
+    n = len(df_all_etf_daily['symbol'])
+    # for i,xc in enumerate(stkPool['code']):
+    file_path = zsys.rdatCNX
+    for i, rx in df_all_etf_daily.iterrows():
+        code = rx['symbol'][2:]
+        print("\n", i, "/", n, '@', code, rx['name'], ",@", file_path if not zsys.use_mysql else
+              'schema: stk, table: %s' % code)
+        tim0, fss = '2010-01-01', file_path + code + '.csv'
+        if zsys.use_mysql:
+            xfg = engine.has_table(code)
+        else:
+            xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
+        if xfg:
+            xd0 = pd.read_sql_table(code, engine) if zsys.use_mysql else pd.read_csv(fss, index_col=False, encoding='utf8')
+            tim0 = list(xd0.date)[-1]
+
+        print('\t', xfg, ",", tim0)
+        # -----------
+        try:
+            xdk = ts.get_k_data(code, index=False, start=tim0, end=None)
+            if len(xdk) > 0:
+                xdk = xdk[zsys.ohlcDVLst]
+                if zsys.use_mysql:
+                    if xfg:
+                        if len(xdk) > 1:
+                            xdk.iloc[1:].to_sql(code, engine, if_exists='append', index=False)
+                    else:
+                        xdk.to_sql(code, engine, index=False)
+                else:
+                    if xfg:
+                        if len(xdk) > 1:
+                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a', header=0)
+                    else:
+                        xdk.to_csv(fss, index=False, encoding='utf8')
+
+        except IOError:
+            pass  # skip,error
+
 
 
 
@@ -276,6 +330,7 @@ def data_update():
     if need_update:
         stock_update()
         index_update()
+        etf_update()
 
 def get_data(code, inx=False):
     """
@@ -301,13 +356,24 @@ def get_data(code, inx=False):
             raise ValueError('Cannot get data')
     return df
 
+def get_all_etf_code():
+    df_all_index_daily = dt.index_stock_info()
+    URL = "http://www.fundsmart.com.cn/api/fund.list.data.php?d=&t=3&i={}"
+    etf_code_list = []
+    for code in df_all_index_daily.index_code.values:
+        ret = requests.get(URL.format(code)).json()['list']
+        for info in ret:
+            etf_code_list.append(info['ticker'])
+    return etf_code_list
 
 
 
 
 
 if __name__ == '__main__':
-    stock_update()
-    index_update()
+    #stock_update()
+    #index_update()
+    etf_update()
+
 
 
