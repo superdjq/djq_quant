@@ -30,6 +30,7 @@ import dtshare as dt
 
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, r2_score
 from sklearn.model_selection import GridSearchCV
@@ -158,6 +159,7 @@ class StcokClassifier(object):
         train_start = '2012-01-01'
         train_end = '2019-12-31'
         n_pca = 50
+        pca = True
         min_profit_ratio = self.target_day // 3
         for part in self.data_params:
             if part.startswith('xlst'):
@@ -179,8 +181,9 @@ class StcokClassifier(object):
             elif part.startswith('pca'):
                 if part[4:].isnumeric():
                     n_pca = int(part[4:])
-                elif part[4:] == 'None':
-                    n_pca = None
+            elif part.startswith('lda'):
+                pca = False
+                n_pca = self.classify - 1
 
         # 数据准备
         try:
@@ -210,10 +213,11 @@ class StcokClassifier(object):
         if drop:
             df = df.dropna()
         #transfer_label_to_classification(df, classify=self.classify)
-        if df.shape[0] < 252:
-            raise ValueError('Not enough train data!')
+
         df['y_pct_change'] = df['y'].copy()
         df_train = df[df.date <= train_end].copy()
+        if df_train.shape[0] < 252:
+            raise ValueError('Not enough train data!')
         df_test = df[df.date > train_end].copy()
         split, thresholds = pd.qcut(df_train['y'], self.classify, labels=range(self.classify), retbins=True)
         if thresholds[-2] < min_profit_ratio:
@@ -224,19 +228,23 @@ class StcokClassifier(object):
 
         # 数据清洗
         std = preprocessing.StandardScaler()
-        if n_pca:
-            pca_50 = PCA(n_components=n_pca)
-
         x_train = df_train[xlst].values
         x_train = std.fit_transform(x_train)
-        if n_pca:
-            x_train = pca_50.fit_transform(x_train)
+
+        if pca:
+            dimension_reducer = PCA(n_components=n_pca)
+            dimension_reducer.transform(x_train)
+        else:
+            # LDA dimension reduction
+            dimension_reducer = LDA(n_components=n_pca)
+            dimension_reducer.fit(x_train, df_train['y'])
+
+        x_train = dimension_reducer.transform(x_train)
         # 测试集与训练集采用相同方法处理
         x_test = df_test[xlst].values
         if x_test.shape[0]:
             x_test = std.transform(x_test)
-            if n_pca:
-                x_test = pca_50.transform(x_test)
+            x_test = dimension_reducer.transform(x_test)
         return self.subclassifiers_transfer(code, x_train), df_train['y'].values, self.subclassifiers_transfer(code, x_test), df_test['y'].values, df_train, df_test, thresholds
 
     def train(self):
@@ -387,8 +395,9 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_2021'
+                 # 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_2021'
+                    'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        #pj.train()
-        pj.daily_predict()
+        pj.train()
+        # pj.daily_predict()

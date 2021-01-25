@@ -29,12 +29,10 @@ with "D" for daily data and "n" for every n minutes data, which n in {5,15,30,60
 ```
 main_folder 
 ├── data
-│   ├── day
-│   │    ├── stk
-│   │    └── inx
-│   └── min               
+│   └── day
 │        ├── stk
 │        └── inx
+│
 ├── model
 │     ├── book         // each classifier has a book to record best params and .pkl file location
 │     ├── result       // record predict results for each day 
@@ -75,6 +73,6 @@ trade.daily_monitor()
 - [x] Add comments
 - [x] Utils module
 - [x] Data base support
-- [ ] Automatic trading module
+- [x] Automatic trading module
 - [ ] Thresholds finding by RL
 - [ ] Diversified indicators
