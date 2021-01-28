@@ -233,7 +233,7 @@ class StcokClassifier(object):
 
         if pca:
             dimension_reducer = PCA(n_components=n_pca)
-            dimension_reducer.transform(x_train)
+            dimension_reducer.fit(x_train)
         else:
             # LDA dimension reduction
             dimension_reducer = LDA(n_components=n_pca)

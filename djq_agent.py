@@ -17,10 +17,10 @@ class Agent(metaclass=ABCMeta):
     AGENT_NAME = 'Agent'
 
     def __init__(self, name, window=5):
-        self.name = self.AGENT_NAME + '|' + name
+        self.name = self.AGENT_NAME + '#' + name
         self.window = window
-        _, self.model_name, self.etf_name, self.id = self.name.split('|')
-        if not os.path.exists(self.BASE_DIR + name):
+        _, self.model_name, self.etf_name, self.id = self.name.split('#')
+        if not os.path.exists(self.BASE_DIR + self.name):
             self._train()
         self._load()
 
@@ -83,6 +83,7 @@ class DqnAgent(Agent):
     AGENT_NAME = 'DqnAgent'
 
     def __init__(self, name, window=5):
+        self.window = window
         self.model = self._build_model()
         super().__init__(name, window=window)
 
@@ -122,6 +123,7 @@ class CemAgent(Agent):
     AGENT_NAME = 'CemAgent'
 
     def __init__(self, name, window=5):
+        self.window = window
         self.model = self._build_model()
         super().__init__(name, window=window)
 
@@ -155,6 +157,7 @@ class DdqnAgent(Agent):
     AGENT_NAME = 'DdqnAgent'
 
     def __init__(self, name, window=5):
+        self.window = window
         self.model = self._build_model()
         super().__init__(name, window=window)
 
@@ -194,6 +197,7 @@ class MultiAgent(Agent):
     AGENT_NAME = 'MultiAgent'
 
     def __init__(self, name, subagents_list: list, window=5, agents_num=5):
+        self.window = window
         if type(agents_num) == int:
             agents_num = [agents_num] * len(subagents_list)
         elif type(agents_num) != list:
@@ -204,7 +208,7 @@ class MultiAgent(Agent):
         super().__init__(name, window=window)
         for agentclass, agents_n in zip(subagents_list, agents_num):
             for i in range(agents_n):
-                self.sub_agents.append(agentclass(self.model_name + '|' + self.etf_name + '|' + str(i+1)))
+                self.sub_agents.append(agentclass(self.model_name + '#' + self.etf_name + '#' + str(i+1), window=self.window))
 
     def _load(self):
         pass
@@ -216,6 +220,7 @@ class MultiAgent(Agent):
         res = Counter()
         for sub_agent in self.sub_agents:
             res[sub_agent.get_action(observation)] += 1
+        print(res)
         action = max(res)
         if res[1] == res[action]:
             action = 1

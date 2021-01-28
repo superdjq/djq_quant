@@ -16,7 +16,7 @@ import json
 import djq_data_processor
 import dtshare
 import tushare as ts
-# import djq_crawler
+import djq_crawler
 
 
 
@@ -30,7 +30,7 @@ class Trader(object):
         sys.path.append(self.BASE_DIR + self.name)
         try:
             import config
-        except:
+        except ModuleNotFoundError:
             raise ImportError('Cannot find the config file')
         self.weights = config.weights
         self.model_names = config.model_names
@@ -119,7 +119,6 @@ class Trader(object):
             pos_his = [0] * (5-len(pos_his)) + pos_his
             observation = np.array(pos_his+pred_his)
             action = self.agents[stk].get_action(observation)
-            print(observation,action)
             if action == 2 and self.pos[stk+'_pos'] < self.steps[stk]:
                 self.pos[stk+'_pos'] += 1
                 total_stock = self.pos[stk+'_value'] * self.pos[stk+'_pos'] / self.steps[stk]

@@ -2,7 +2,7 @@
 # This trader combines three base model: sz50, hs300, cyb
 # This trader creates daily position of each etf, and trace daily return of the portfolio
 # You must define your weights of each security
-from djq_agent import ThresholdAgent
+from djq_agent import ThresholdAgent, CemAgent, DqnAgent, DdqnAgent, MultiAgent
 
 weights = {'cyb': 1}
 
@@ -19,7 +19,8 @@ model_names = {'cyb': 'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'}
 
 # You must define the threshold for your model to long or short the security
 
-agent = {'cyb': ThresholdAgent('SVM_target30_classify5_inx-399006_loss-r2_lda_2021|159915|1')}
+agent = {'cyb': MultiAgent('SVM_target30_classify5_inx-399006_loss-r2_lda_2021#159915#1',
+                           subagents_list=[ThresholdAgent, CemAgent, DdqnAgent, DqnAgent], agents_num=[3, 5, 5, 5])}
 # You must define the percentage to buy or sell if your model shot a signal
 
 steps = {'cyb': 1}
