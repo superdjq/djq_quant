@@ -1,3 +1,14 @@
+"""
+The module 'djq_agent' define trading strategies, the agent tells what to do on your account when new info available.
+- action is int, with 2 means 'long', 1 means 'keep', 0 means 'short'
+- observation, composites of predict result provided by models, and position info of recent days
+- param 'window' means the length of input_dims, so that observation = [predict result]*window + [position]*window
+- ThresholdAgent learns the best up/down thresholds that maximize the profit, when the result is above up threshold,
+the agent generate a long signal
+- DqnAgent, DdqnAgent, CemAgent all trained by 'keras-rl', using deep reinforce learning method
+- MultiAgent is an ensemble RL agent, set the list of sub-agent and number of each agent, it will collect every
+sub-agent's result, and return the action of the most picked
+"""
 import djq_utils
 from abc import ABCMeta,abstractmethod
 import os, json
@@ -5,8 +16,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Activation, Flatten
 from keras.optimizers import Adam
 from rl.agents.dqn import DQNAgent
-from rl.policy import BoltzmannQPolicy, MaxBoltzmannQPolicy, LinearAnnealedPolicy
-from rl.policy import GreedyQPolicy, EpsGreedyQPolicy, BoltzmannGumbelQPolicy
+from rl.policy import BoltzmannQPolicy, LinearAnnealedPolicy, EpsGreedyQPolicy
 from rl.memory import SequentialMemory, EpisodeParameterMemory
 from rl.agents import CEMAgent
 from collections import Counter
@@ -39,7 +49,6 @@ class Agent(metaclass=ABCMeta):
 
 class ThresholdAgent(Agent):
     AGENT_NAME = 'ThresholdAgent'
-
 
     def _load(self):
         with open(self.BASE_DIR + self.name + '/config.json', 'r') as f:
@@ -90,6 +99,8 @@ class DqnAgent(Agent):
     def _build_model(self):
         model = Sequential()
         model.add(Flatten(input_shape=(1,) + (self.window * 2,)))
+        model.add(Dense(32))
+        model.add(Activation('relu'))
         model.add(Dense(32))
         model.add(Activation('relu'))
         model.add(Dense(32))
@@ -168,6 +179,8 @@ class DdqnAgent(Agent):
         model.add(Activation('relu'))
         model.add(Dense(32))
         model.add(Activation('relu'))
+        model.add(Dense(32))
+        model.add(Activation('relu'))
         model.add(Dense(3))
         model.add(Activation('linear'))
 
@@ -197,6 +210,12 @@ class MultiAgent(Agent):
     AGENT_NAME = 'MultiAgent'
 
     def __init__(self, name, subagents_list: list, window=5, agents_num=5):
+        """
+        :param name:str, consists of model name trained by djq_train_model, etf name correspondent to your model, id
+        :param subagents_list: list, a list of agent classes which are preferred
+        :param window:int, the length of the latest predict results and your positions
+        :param agents_num: int or list of int, the agent number of each agent class
+        """
         self.window = window
         if type(agents_num) == int:
             agents_num = [agents_num] * len(subagents_list)
@@ -208,7 +227,8 @@ class MultiAgent(Agent):
         super().__init__(name, window=window)
         for agentclass, agents_n in zip(subagents_list, agents_num):
             for i in range(agents_n):
-                self.sub_agents.append(agentclass(self.model_name + '#' + self.etf_name + '#' + str(i+1), window=self.window))
+                self.sub_agents.append(agentclass(self.model_name + '#' + self.etf_name + '#' + str(i+1),
+                                                  window=self.window))
 
     def _load(self):
         pass

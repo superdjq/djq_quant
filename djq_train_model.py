@@ -411,9 +411,9 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                 # 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_2021'
-                    'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
+                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_lda_proba_2021'
+                 #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        # pj.train()
-        print(pj.daily_predict())
+        pj.train()
+        # print(pj.daily_predict())
