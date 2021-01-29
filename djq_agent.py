@@ -259,4 +259,4 @@ class MultiAgent(Agent):
 
 
 if __name__ == '__main__':
-    agent = DqnAgent('SVM_target30_classify5_inx-399006_loss-r2_lda_2021#159915#1')
+    agent = DqnAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_lda_proba_2021#510050#1')
