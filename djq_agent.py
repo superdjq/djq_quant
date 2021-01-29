@@ -20,6 +20,8 @@ from rl.policy import BoltzmannQPolicy, LinearAnnealedPolicy, EpsGreedyQPolicy
 from rl.memory import SequentialMemory, EpisodeParameterMemory
 from rl.agents import CEMAgent
 from collections import Counter
+import multiprocessing
+import numpy as np
 
 
 class Agent(metaclass=ABCMeta):
@@ -88,48 +90,6 @@ class ThresholdAgent(Agent):
             return 1
 
 
-class DqnAgent(Agent):
-    AGENT_NAME = 'DqnAgent'
-
-    def __init__(self, name, window=5):
-        self.window = window
-        self.model = self._build_model()
-        super().__init__(name, window=window)
-
-    def _build_model(self):
-        model = Sequential()
-        model.add(Flatten(input_shape=(1,) + (self.window * 2,)))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
-        model.add(Dense(3))
-        model.add(Activation('linear'))
-
-        memory = SequentialMemory(limit=50000, window_length=1)
-
-        policy = BoltzmannQPolicy()
-
-        dqn = DQNAgent(model=model, nb_actions=3, memory=memory, nb_steps_warmup=1000,
-                       target_model_update=1e-2, policy=policy)
-        dqn.compile(Adam(lr=1e-3, decay=1e-6), metrics=['mae'])
-        return dqn
-
-    def _load(self):
-        self.model.load_weights(self.BASE_DIR + self.name + '/weights.h5f')
-
-    def _train(self):
-        os.mkdir(self.BASE_DIR + self.name)
-        env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='all')
-        self.model.fit(env, nb_steps=50000, visualize=False, verbose=0)
-        self.model.save_weights(self.BASE_DIR + self.name + '/weights.h5f', overwrite=True)
-
-    def get_action(self, observation):
-        return self.model.forward(observation)
-
-
 class CemAgent(Agent):
     AGENT_NAME = 'CemAgent'
 
@@ -164,46 +124,97 @@ class CemAgent(Agent):
         return self.model.forward(observation)
 
 
-class DdqnAgent(Agent):
-    AGENT_NAME = 'DdqnAgent'
+class DqnAgent(Agent):
+    AGENT_NAME = 'DqnAgent'
 
     def __init__(self, name, window=5):
         self.window = window
-        self.model = self._build_model()
+        self.model = None
         super().__init__(name, window=window)
 
-    def _build_model(self):
+    def _build_model(self, args):
+        assert type(args) == dict
+
         model = Sequential()
         model.add(Flatten(input_shape=(1,) + (self.window * 2,)))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
-        model.add(Dense(32))
-        model.add(Activation('relu'))
+        for _ in range(args['n_layers']):
+            model.add(Dense(args['layer_dense']))
+            model.add(Activation('relu'))
         model.add(Dense(3))
         model.add(Activation('linear'))
 
         memory = SequentialMemory(limit=50000, window_length=1)
 
-        policy = BoltzmannQPolicy()
+        policy = {'Boltzmann': BoltzmannQPolicy(),
+                  'Eps_greedy': EpsGreedyQPolicy(eps=0.2),
+                  'Eps_decay_greedy': LinearAnnealedPolicy(EpsGreedyQPolicy(), attr='eps', value_max=1.,
+                                                           value_min=.1, value_test=.05,
+                                                           nb_steps=args['episode'])}[args['policy']]
 
-        dqn = DQNAgent(model=model, nb_actions=3, memory=memory, nb_steps_warmup=1000,
-                       enable_dueling_network=True, dueling_type='avg', target_model_update=1e-2, policy=policy)
+        dqn = {'DdqnAgent': DQNAgent(model=model, nb_actions=3, memory=memory, nb_steps_warmup=1000,
+                                     enable_dueling_network=True, dueling_type='avg',
+                                     target_model_update=1e-2, policy=policy),
+               'DqnAgent': DQNAgent(model=model, nb_actions=3, memory=memory, nb_steps_warmup=1000,
+                                    target_model_update=1e-2, policy=policy)}[self.AGENT_NAME]
         dqn.compile(Adam(lr=1e-3, decay=1e-6), metrics=['mae'])
         return dqn
 
+    def _single_run(self, env, model, episode):
+        model.fit(env, nb_steps=episode, visualize=False, verbose=0)
+        his = model.test(env, nb_episodes=1, visualize=False)
+        return his.history['episode_reward']
+
+    def _param_run(self, env, model, episode):
+        record = []
+        pool = multiprocessing.Pool(processes=10)
+        for _ in range(50):
+            record.append(pool.apply_async(self._single_run, args=(env, model, episode)))
+        pool.close()
+        pool.join()
+        env.mode = 'test' if env.mode == 'train' else 'train'
+        res1 = np.average([r.get() for r in record])
+        record = []
+        pool = multiprocessing.Pool(processes=10)
+        for _ in range(50):
+            record.append(pool.apply_async(self._single_run, args=(env, model, episode)))
+        pool.close()
+        pool.join()
+        res2 = np.average([r.get() for r in record])
+        return res1 + res2
+
     def _load(self):
+        with open(self.BASE_DIR + self.name + '/config.json', 'r') as f:
+            args = json.load(f)
+        self.model = self._build_model(args)
         self.model.load_weights(self.BASE_DIR + self.name + '/weights.h5f')
 
     def _train(self):
         os.mkdir(self.BASE_DIR + self.name)
-        env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='all')
-        self.model.fit(env, nb_steps=50000, visualize=False, verbose=0)
+        best_params = dict()
+        best_profit = -float('inf')
+        env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='train')
+        for episode in [50000, 100000]:
+            for policy in ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy']:
+                for n_layers in range(3):
+                    for layer_dense in [16, 32, 64]:
+                        args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense}
+                        model = self._build_model(args)
+                        score = self._single_run(env, model, episode)
+                        if score > best_profit:
+                            best_params = args
+        with open(self.BASE_DIR + self.name + '/config.json', 'w') as f:
+            json.dump(best_params, f)
+        env.mode = 'all'
+        self.model = self._build_model(best_params)
+        self.model.fit(env, nb_steps=best_params['episode'], visualize=False, verbose=0)
         self.model.save_weights(self.BASE_DIR + self.name + '/weights.h5f', overwrite=True)
 
     def get_action(self, observation):
         return self.model.forward(observation)
+
+
+class DdqnAgent(DqnAgent):
+    AGENT_NAME = 'DdqnAgent'
 
 
 class MultiAgent(Agent):
@@ -247,3 +258,5 @@ class MultiAgent(Agent):
         return action
 
 
+if __name__ == '__main__':
+    agent = DqnAgent('SVM_target30_classify5_inx-399006_loss-r2_lda_2021#159915#1')
