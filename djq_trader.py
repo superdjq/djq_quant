@@ -8,7 +8,6 @@ daily positions following the strategy, you can set pos to 0, and total profit t
 you start to make real deal
 """
 from djq_train_model import StcokClassifier
-#from djq_risk_control import cal_weights, position_control
 import numpy as np
 import pandas as pd
 import time, os, sys

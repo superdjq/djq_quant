@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from multiprocessing import Process
 
-os.system('adb connect 127.0.0.1:21503')
+
 
 server = 'http://localhost:4723/wd/hub'
 desired_caps = {
@@ -21,6 +21,7 @@ pd = '681116'
 
 class Crawler():
     def __init__(self):
+        os.system('adb connect {}'.format(desired_caps['deviceName']))
         self.driver = webdriver.Remote(server, desired_capabilities=desired_caps)
         self.wait = WebDriverWait(self.driver, 20)
         self.driver.implicitly_wait(2)

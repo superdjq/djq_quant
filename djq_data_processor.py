@@ -388,7 +388,7 @@ if __name__ == '__main__':
     #stock_update()
     #index_update()
     # etf_update()
-    mkt_update()
+    # mkt_update()
     print(get_data('market'))
 
 
