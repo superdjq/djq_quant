@@ -21,7 +21,7 @@ pd = '681116'
 
 class Crawler():
     def __init__(self):
-        os.system('adb connect {}'.format(desired_caps['deviceName']))
+        os.system('adb connect 127.0.0.1:21503')
         self.driver = webdriver.Remote(server, desired_capabilities=desired_caps)
         self.wait = WebDriverWait(self.driver, 20)
         self.driver.implicitly_wait(2)
