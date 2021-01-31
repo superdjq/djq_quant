@@ -5,6 +5,7 @@ prepare data set for lstm learning, and data washing process
 
 import pandas as pd
 import numpy as np
+import demjson
 import tushare as ts
 import dtshare as dt
 import os
@@ -14,7 +15,6 @@ from sklearn import preprocessing
 from sqlalchemy import create_engine
 import datetime, chinese_calendar
 import requests
-import akshare as ak
 
 
 def prepare_single_df_to_lstm(df, xlst, window=30, classify=(2, 0), target_day=5, split_date='2019-01-01', noclose=True):
@@ -247,7 +247,7 @@ def etf_update():
                             '5'-every 5 minutes, same as '15','30','60'
     :return: Nothing
     """
-    df_all_etf_daily = ak.fund_etf_category_sina('ETF基金')
+    df_all_etf_daily = fund_etf_category_sina('ETF基金')
     if zsys.use_mysql:
         engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
                                                                                 zsys.mysql_password,
@@ -379,6 +379,36 @@ def get_all_etf_code():
         for info in ret:
             etf_code_list.append(info['ticker'])
     return etf_code_list
+
+
+def fund_etf_category_sina(symbol: str = "封闭式基金") -> pd.DataFrame:
+    """
+    基金列表
+    http://vip.stock.finance.sina.com.cn/fund_center/index.html#jjhqetf
+    :param symbol: choice of {"封闭式基金", "ETF基金", "LOF基金"}
+    :type symbol: str
+    :return: 指定 symbol 的基金列表
+    :rtype: pandas.DataFrame
+    """
+    fund_map = {
+        "封闭式基金": "close_fund",
+        "ETF基金": "etf_hq_fund",
+        "LOF基金": "lof_hq_fund",
+    }
+    url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/jsonp.php/IO.XSRV2.CallbackList['da_yPT46_Ll7K6WD']/Market_Center.getHQNodeDataSimple"
+    params = {
+        "page": "1",
+        "num": "1000",
+        "sort": "symbol",
+        "asc": "0",
+        "node": fund_map[symbol],
+        "[object HTMLDivElement]": "qvvne",
+    }
+    r = requests.get(url, params=params)
+    data_text = r.text
+    data_json = demjson.decode(data_text[data_text.find("([")+1:-2])
+    temp_df = pd.DataFrame(data_json)
+    return temp_df
 
 
 

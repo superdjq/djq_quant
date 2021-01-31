@@ -14,9 +14,7 @@ from abc import ABCMeta,abstractmethod
 import os
 import json
 import itertools
-from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten
-from keras.optimizers import Adam
+import tensorflow as tf
 from rl.agents.dqn import DQNAgent
 from rl.policy import BoltzmannQPolicy, LinearAnnealedPolicy, EpsGreedyQPolicy
 from rl.memory import SequentialMemory, EpisodeParameterMemory
@@ -24,6 +22,15 @@ from rl.agents import CEMAgent
 from collections import Counter
 import multiprocessing
 import numpy as np
+
+if tf.__version__.startswith('2'):
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Activation, Flatten
+    from tensorflow.keras.optimizers import Adam
+else:
+    from keras.models import Sequential
+    from keras.layers import Dense, Activation, Flatten
+    from keras.optimizers import Adam
 
 
 class Agent(metaclass=ABCMeta):
@@ -170,17 +177,16 @@ class DqnAgent(Agent):
     def _param_run(self, env, args, episode):
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(50):
+        for _ in range(30):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
             # record.append(single_run(env, model, episode))
         pool.close()
         pool.join()
         env.mode = 'test' if env.mode == 'train' else 'train'
         res1 = np.average([r.get() for r in record])
-        # res1 = np.average(record)
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(50):
+        for _ in range(30):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
         pool.close()
         pool.join()
@@ -198,7 +204,7 @@ class DqnAgent(Agent):
         best_profit = -float('inf')
         env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='train')
         for episode, policy, n_layers, layer_dense in itertools.product(
-                [50000, 100000], ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy'], range(1, 4), [16, 32, 64]):
+                [50000, 100000], ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy'], range(2, 4), [16, 32]):
             args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense}
             score = self._param_run(env, args, episode)
             if score > best_profit:
