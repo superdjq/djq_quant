@@ -11,7 +11,9 @@ sub-agent's result, and return the action of the most picked
 """
 import djq_utils
 from abc import ABCMeta,abstractmethod
-import os, json
+import os
+import json
+import itertools
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Flatten
 from keras.optimizers import Adam
@@ -159,24 +161,27 @@ class DqnAgent(Agent):
         dqn.compile(Adam(lr=1e-3, decay=1e-6), metrics=['mae'])
         return dqn
 
-    def _single_run(self, env, model, episode):
+    def _single_run(self, env, args, episode):
+        model = self._build_model(args)
         model.fit(env, nb_steps=episode, visualize=False, verbose=0)
         his = model.test(env, nb_episodes=1, visualize=False)
         return his.history['episode_reward']
 
-    def _param_run(self, env, model, episode):
+    def _param_run(self, env, args, episode):
         record = []
         pool = multiprocessing.Pool(processes=10)
         for _ in range(50):
-            record.append(pool.apply_async(self._single_run, args=(env, model, episode)))
+            record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
+            # record.append(single_run(env, model, episode))
         pool.close()
         pool.join()
         env.mode = 'test' if env.mode == 'train' else 'train'
         res1 = np.average([r.get() for r in record])
+        # res1 = np.average(record)
         record = []
         pool = multiprocessing.Pool(processes=10)
         for _ in range(50):
-            record.append(pool.apply_async(self._single_run, args=(env, model, episode)))
+            record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
         pool.close()
         pool.join()
         res2 = np.average([r.get() for r in record])
@@ -189,19 +194,17 @@ class DqnAgent(Agent):
         self.model.load_weights(self.BASE_DIR + self.name + '/weights.h5f')
 
     def _train(self):
-        os.mkdir(self.BASE_DIR + self.name)
         best_params = dict()
         best_profit = -float('inf')
         env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='train')
-        for episode in [50000, 100000]:
-            for policy in ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy']:
-                for n_layers in range(3):
-                    for layer_dense in [16, 32, 64]:
-                        args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense}
-                        model = self._build_model(args)
-                        score = self._single_run(env, model, episode)
-                        if score > best_profit:
-                            best_params = args
+        for episode, policy, n_layers, layer_dense in itertools.product(
+                [50000, 100000], ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy'], range(1, 4), [16, 32, 64]):
+            args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense}
+            score = self._param_run(env, args, episode)
+            if score > best_profit:
+                best_params = args
+                best_profit = score
+        os.mkdir(self.BASE_DIR + self.name)
         with open(self.BASE_DIR + self.name + '/config.json', 'w') as f:
             json.dump(best_params, f)
         env.mode = 'all'
@@ -256,6 +259,8 @@ class MultiAgent(Agent):
         if res[1] == res[action]:
             action = 1
         return action
+
+
 
 
 if __name__ == '__main__':
