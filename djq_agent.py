@@ -260,8 +260,7 @@ class MultiAgent(Agent):
         res = Counter()
         for sub_agent in self.sub_agents:
             res[sub_agent.get_action(observation)] += 1
-        print(res)
-        action = max(res)
+        action = max(res, key=lambda x: res[x])
         if res[1] == res[action]:
             action = 1
         return action

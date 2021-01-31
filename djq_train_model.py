@@ -415,5 +415,5 @@ if __name__ == '__main__':
                  #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        pj.train()
-        # print(pj.daily_predict())
+        # pj.train()
+        print(pj.daily_predict())
