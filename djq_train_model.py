@@ -216,8 +216,6 @@ class StcokClassifier(object):
 
         df['y_pct_change'] = df['y'].copy()
         df_train = df[df.date <= train_end].copy()
-        if df_train.shape[0] < 252:
-            raise ValueError('Not enough train data!')
         df_test = df[df.date > train_end].copy()
         split, thresholds = pd.qcut(df_train['y'], self.classify, labels=range(self.classify), retbins=True)
         if thresholds[-2] < min_profit_ratio:
@@ -233,7 +231,7 @@ class StcokClassifier(object):
 
         if pca:
             dimension_reducer = PCA(n_components=n_pca)
-            dimension_reducer.transform(x_train)
+            dimension_reducer.fit(x_train)
         else:
             # LDA dimension reduction
             dimension_reducer = LDA(n_components=n_pca)
@@ -286,7 +284,7 @@ class StcokClassifier(object):
             file_path = self.pjNam + '/' + code + '.pkl'
             joblib.dump(model, filename=StcokClassifier.BASE_DIR + file_path)
             result_dict = {}
-            for i in range(5):
+            for i in range(self.classify):
                 result_dict['tier'+str(i)] = (thresholds[i] + thresholds[i+1]) / 2
             result_dict.update({'code': code, 'best_train_score': score, 'best_params': str(params), 'model_dir': file_path})
             if len(x_test):
