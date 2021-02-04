@@ -126,7 +126,7 @@ class CemAgent(Agent):
     def _train(self):
         os.mkdir(self.BASE_DIR + self.name)
         env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='all')
-        self.model.fit(env, nb_steps=50000, visualize=False, verbose=0)
+        self.model.fit(env, nb_steps=100000, visualize=False, verbose=2)
         self.model.save_weights(self.BASE_DIR + self.name + '/weights.h5f', overwrite=True)
 
     def get_action(self, observation):

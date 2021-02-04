@@ -180,7 +180,7 @@ class StcokClassifier(object):
                 min_profit_ratio = int(part[10:])
             elif part.startswith('pca'):
                 if part[4:].isnumeric():
-                    n_pca = int(part[4:])
+                    n_pca = int(part[3:])
             elif part.startswith('lda'):
                 pca = False
                 n_pca = self.classify - 1
@@ -286,7 +286,7 @@ class StcokClassifier(object):
             file_path = self.pjNam + '/' + code + '.pkl'
             joblib.dump(model, filename=StcokClassifier.BASE_DIR + file_path)
             result_dict = {}
-            for i in range(5):
+            for i in range(self.classify):
                 result_dict['tier'+str(i)] = (thresholds[i] + thresholds[i+1]) / 2
             result_dict.update({'code': code, 'best_train_score': score, 'best_params': str(params), 'model_dir': file_path})
             if len(x_test):
@@ -411,9 +411,9 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                  'ensemble_ADA_target30_classify5_inx-000016_loss-r2_lda_proba_2021'
+                  'ensemble_ADA_target10_classify20_inx-000016_loss-r2_lda_proba_2021'
                  #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
                   ]:
         pj = StcokClassifier(pjNam)
-        # pj.train()
+        pj.train()
         print(pj.daily_predict())
