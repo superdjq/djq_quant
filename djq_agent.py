@@ -126,7 +126,7 @@ class CemAgent(Agent):
     def _train(self):
         os.mkdir(self.BASE_DIR + self.name)
         env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='all')
-        self.model.fit(env, nb_steps=100000, visualize=False, verbose=2)
+        self.model.fit(env, nb_steps=100000, visualize=False, verbose=0)
         self.model.save_weights(self.BASE_DIR + self.name + '/weights.h5f', overwrite=True)
 
     def get_action(self, observation):
@@ -179,7 +179,8 @@ class DqnAgent(Agent):
     def _param_run(self, env, args, episode):
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(10):
+        env.mode = 'train'
+        for _ in range(30):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
             # record.append(single_run(env, model, episode))
         pool.close()
@@ -188,7 +189,7 @@ class DqnAgent(Agent):
         res1 = np.average([r.get() for r in record])
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(10):
+        for _ in range(30):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
         pool.close()
         pool.join()
@@ -280,4 +281,5 @@ class MultiAgent(Agent):
 
 
 if __name__ == '__main__':
-    agent = DqnAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_lda_proba_2021#510050#1')
+    agent = MultiAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021#510050#1',
+                       [CemAgent, ThresholdAgent], agents_num=1)
