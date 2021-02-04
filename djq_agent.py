@@ -136,9 +136,10 @@ class CemAgent(Agent):
 class DqnAgent(Agent):
     AGENT_NAME = 'DqnAgent'
 
-    def __init__(self, name, window=5):
+    def __init__(self, name, window=5, n_weakagents=10):
         self.window = window
-        self.model = None
+        self.model = []
+        self.n_weakagents = n_weakagents
         super().__init__(name, window=window)
 
     def _build_model(self, args):
@@ -165,7 +166,7 @@ class DqnAgent(Agent):
                                      target_model_update=1e-2, policy=policy),
                'DqnAgent': DQNAgent(model=model, nb_actions=3, memory=memory, nb_steps_warmup=1000,
                                     target_model_update=1e-2, policy=policy)}[self.AGENT_NAME]
-        dqn.compile(Adam(lr=1e-3, decay=1e-6), metrics=['mae'])
+        dqn.compile(Adam(lr=args['lr'], decay=1e-6), metrics=['mae'])
         return dqn
 
     def _single_run(self, env, args, episode):
@@ -177,7 +178,7 @@ class DqnAgent(Agent):
     def _param_run(self, env, args, episode):
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(30):
+        for _ in range(10):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
             # record.append(single_run(env, model, episode))
         pool.close()
@@ -186,7 +187,7 @@ class DqnAgent(Agent):
         res1 = np.average([r.get() for r in record])
         record = []
         pool = multiprocessing.Pool(processes=10)
-        for _ in range(30):
+        for _ in range(10):
             record.append(pool.apply_async(self._single_run, args=(env, args, episode, )))
         pool.close()
         pool.join()
@@ -196,16 +197,18 @@ class DqnAgent(Agent):
     def _load(self):
         with open(self.BASE_DIR + self.name + '/config.json', 'r') as f:
             args = json.load(f)
-        self.model = self._build_model(args)
-        self.model.load_weights(self.BASE_DIR + self.name + '/weights.h5f')
+        for i in range(self.n_weakagents):
+            model = self._build_model(args)
+            model.load_weights(self.BASE_DIR + self.name + '/weights#{}.h5f'.format(i))
+            self.model.append(model)
 
     def _train(self):
         best_params = dict()
         best_profit = -float('inf')
         env = djq_utils.stock_env(self.model_name, self.etf_name, window=self.window, mode='train')
-        for episode, policy, n_layers, layer_dense in itertools.product(
-                [50000, 100000], ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy'], range(2, 4), [16, 32]):
-            args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense}
+        for episode, policy, n_layers, layer_dense, lr in itertools.product(
+                [50000, 80000], ['Boltzmann', 'Eps_greedy', 'Eps_decay_greedy'], range(3, 4), [32, 64], [1e-3, 5e-4]):
+            args = {'episode': episode, 'policy': policy, 'n_layers': n_layers, 'layer_dense': layer_dense, 'lr': lr}
             score = self._param_run(env, args, episode)
             if score > best_profit:
                 best_params = args
@@ -214,12 +217,19 @@ class DqnAgent(Agent):
         with open(self.BASE_DIR + self.name + '/config.json', 'w') as f:
             json.dump(best_params, f)
         env.mode = 'all'
-        self.model = self._build_model(best_params)
-        self.model.fit(env, nb_steps=best_params['episode'], visualize=False, verbose=0)
-        self.model.save_weights(self.BASE_DIR + self.name + '/weights.h5f', overwrite=True)
+        for i in range(self.n_weakagents):
+            model = self._build_model(best_params)
+            model.fit(env, nb_steps=best_params['episode'], visualize=False, verbose=0)
+            model.save_weights(self.BASE_DIR + self.name + '/weights#{}.h5f'.format(i), overwrite=True)
 
     def get_action(self, observation):
-        return self.model.forward(observation)
+        res = Counter()
+        for model in self.model:
+            res[model.forward(observation)] += 1
+        action = max(res, key=lambda x: res[x])
+        if res[1] == res[action]:
+            action = 1
+        return action
 
 
 class DdqnAgent(DqnAgent):
