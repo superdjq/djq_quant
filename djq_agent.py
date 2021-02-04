@@ -172,6 +172,7 @@ class DqnAgent(Agent):
     def _single_run(self, env, args, episode):
         model = self._build_model(args)
         model.fit(env, nb_steps=episode, visualize=False, verbose=0)
+        env.mode = 'test' if env.mode == 'train' else 'train'
         his = model.test(env, nb_episodes=1, visualize=False)
         return his.history['episode_reward']
 
@@ -183,7 +184,7 @@ class DqnAgent(Agent):
             # record.append(single_run(env, model, episode))
         pool.close()
         pool.join()
-        env.mode = 'test' if env.mode == 'train' else 'train'
+        env.mode = 'test'
         res1 = np.average([r.get() for r in record])
         record = []
         pool = multiprocessing.Pool(processes=10)
