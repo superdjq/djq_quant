@@ -23,7 +23,7 @@ import os, time
 import pandas as pd
 import numpy as np
 import zsys, os
-from djq_data_processor import get_label, get_data
+import djq_data_processor
 from djq_talib import get_all_finanical_indicators
 import tushare as ts
 import dtshare as dt
@@ -180,14 +180,14 @@ class StcokClassifier(object):
                 min_profit_ratio = int(part[10:])
             elif part.startswith('pca'):
                 if part[4:].isnumeric():
-                    n_pca = int(part[4:])
+                    n_pca = int(part[3:])
             elif part.startswith('lda'):
                 pca = False
                 n_pca = self.classify - 1
 
         # 数据准备
         try:
-            df = get_data(code)
+            df = djq_data_processor.get_data(code)
         except:
             raise ValueError('Cannot find the file!')
         if real_time and list(df['date'])[-1] != time.strftime('%Y-%m-%d'):
@@ -208,7 +208,7 @@ class StcokClassifier(object):
         if df.shape[0] < 252:
             raise ValueError('Not enough train data!')
         df = get_all_finanical_indicators(df)
-        get_label(df, target_day=self.target_day)
+        djq_data_processor.get_label(df, target_day=self.target_day)
         df = df[df.date >= train_start]
         if drop:
             df = df.dropna()
@@ -351,8 +351,24 @@ class StcokClassifier(object):
             result = result.sort_index()
             result = result.fillna('2')
             result = result.astype('int')
+            result['weighted_pct'] = self.cls_to_weighted_pct(result)
             result.to_csv(file_path)
         return pd.read_csv(file_path, index_col=0)
+
+    def cls_to_weighted_pct(self, df):
+        """
+        The estimated result is a class interval number, change the class to corresponding pct change
+        Calculate the index pct change using the market value weights
+        :param df: pandas.DataFrame, estimated result
+        :param pjNam: str, project name
+        :return: float, estimated change of index
+        """
+        df2 = df.astype(float)
+        for stk in df.columns:
+            df2.loc[:][stk] = [self.book[self.book.code == stk]['tier' + str(int(c))].values[0] for c in df.loc[:][stk]]
+        mkt = djq_data_processor.get_data('market')
+        mkt = mkt.set_index('code')
+        return np.average(df2, weights=mkt.loc[df.columns]['mktcap'], axis=1)
 
 
 def profit_score(clf, X, y_true):
@@ -393,9 +409,9 @@ if __name__ == '__main__':
     # pj.train()
     # print('I change some file!')
     for pjNam in [
-                 # 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_2021'
-                    'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
+                  'ensemble_ADA_target10_classify5_inx-399006_loss-r2_pca50_proba_2021'
+                 #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
                   ]:
         pj = StcokClassifier(pjNam)
         pj.train()
-        # pj.daily_predict()
+        print(pj.daily_predict())
