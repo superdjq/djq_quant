@@ -69,10 +69,16 @@ you may create a folder under folder "trade", and create a config file in the fo
 trade = Trader('etf_trade_manager')
 trade.daily_monitor()
 ```
+### define trading strategy
+Set trading agent in trader manager config file.
+Using reinforce learning agent defined in djq_agent
+```python
+agent = {'hs300': DdqnAgent(name)}
+```
 ## Todo list
 - [x] Add comments
 - [x] Utils module
 - [x] Data base support
 - [x] Automatic trading module
-- [ ] Thresholds finding by RL
+- [x] Trading strategy by RL
 - [ ] Diversified indicators

@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from djq_train_model import StcokClassifier
+import djq_data_processor
 import matplotlib.ticker as ticker
 import zsys
 import time
@@ -55,52 +57,72 @@ class stock_env(object):
     - reset(): reset the environment to the first day
     - step(): return daily observation, real price change of last day, and done as flag
     '''
-    def __init__(self, trade_manager_name):
-        self.trade_manager = Trader(trade_manager_name)
-        self.df_pred = self.initial_pred()
-        self.code = self.df_pred.columns
-        self.n_stock = len(self.code)
+    def __init__(self, model_name, etf_name, window=5, mode='train', position_split=1):
+        self.model = StcokClassifier(model_name)
+        self.etf = etf_name
+        self.df_pred = self.model.daily_predict(real_time=False).weighted_pct
         self.df_env = self.initial_env()
-        self.n_action = len(self.df_env.columns)
-        self.pos = 0
+        self.n_action = 3
+        self.window = window
+        self.pos = [0] * window
         self.end = len(self.df_env)
         self.commission = 0.001
         self.done = False
-        self.action_memory = np.ones((len(self.df_pred), self.n_stock)) / self.n_stock
+        self.position_split = position_split
+        self.mode = mode
 
-    def initial_pred(self):
-        return self.trade_manager.df_pred
 
     def initial_env(self):
         df_env = pd.DataFrame(index=self.df_pred.index)
-        paths = self.trade_manager.data_path
-        for name, path in paths.items():
-            df_stk = pd.read_csv(path, index_col=0, usecols=['date', 'close'])
-            df_stk = df_stk.rename(columns={'close': name})
-            df_stk = df_stk.sort_values('date')
-            df_stk = df_stk.pct_change() + 1
-            df_env = df_env.join(df_stk)
+        df_stk = djq_data_processor.get_data(self.etf)
+        df_stk = df_stk.set_index('date')
+        df_env = df_env.join(df_stk.close)
         df_env = df_env.fillna(method='ffill')
         df_env = df_env.fillna(method='backfill')
-        # df_env = df_env.pct_change()+1
-        df_env.loc[:, 'cash'] = 1
         return df_env
 
-    def reset(self, mode='all'):
-        self.pos = 0 if mode != 'test' else len(self.df_env)//2
-        self.end = len(self.df_env) - 1 if mode != 'train' else len(self.df_env)//2
+    def reset(self):
+        self.cash = 100000
+        self.total_value = 100000
+        self.pos = [0] * self.window
+        self.observation = [0] * self.window
+        self.i = 0 if self.mode != 'test' else len(self.df_env) // 2
+        self.observation[-1] = self.df_pred.iloc[self.i]
+        self.shares = 0
+        self.end = len(self.df_env) if self.mode != 'train' else len(self.df_env) // 2
         self.done = False
-        self.action_memory = np.ones((len(self.df_pred), self.n_action)) / self.n_action
-        return np.concatenate([self.df_pred.iloc[self.pos].values, self.action_memory[self.pos]])
+        # self.action_memory = np.ones((len(self.df_pred), self.n_action)) / self.n_action
+        # return np.concatenate([self.df_pred.iloc[self.pos].values, self.action_memory[self.pos]])
+        return np.array(self.pos + self.observation)
 
-    def step(self, stk):
-        observation = self.df_pred.iloc[self.pos][stk]
-        score = self.df_env.iloc[self.pos + 1][stk]
-        self.pos += 1
-        done = self.pos >= self.end
-        return observation, score, done
+    def step(self, action):
+        price = self.df_env.close.iloc[self.i]
+        tmp = self.total_value
+        self.total_value = self.cash + price * self.shares
+        pos = self.pos[-1]
+        if action == 2 and pos < self.position_split:
+            pos += 1
+            total_stock = self.total_value * pos / self.position_split
+            buy_shares = max(0, (total_stock // (price * 100)) * 100 - self.shares)
+            self.shares += buy_shares
+            self.cash -= buy_shares * price * (1 + 0.001)
+            self.total_value -= buy_shares * price * 0.001
 
-def Monte_Carlo_Simulation(env, name, threshold_u, threshold_d, pos_step=2, mode='train', need_plot=False, ret_his=False):
+        elif action == 0 and pos > 0:
+            pos -= 1
+            total_stock = self.total_value * pos / self.position_split
+            sell_shares = max(0, self.shares - (total_stock // (price * 100)) * 100)
+            self.shares -= sell_shares
+            self.cash += sell_shares * price * (1 - 0.001)
+            self.total_value -= sell_shares * price * 0.001
+        self.pos = self.pos[1:] + [pos]
+        self.i += 1
+        done = self.i >= self.end
+        if not done:
+            self.observation = self.observation[1:] + [self.df_pred.iloc[self.i]]
+        return np.array(self.pos + self.observation), self.total_value - tmp, done, {}
+
+def Monte_Carlo_Simulation(env, threshold_u, threshold_d, pos_step=1, mode='train', need_plot=False, ret_his=False):
     '''
     Simulate trade strategy with simply buy if the price above the up_threshold, and
     sell if price below the down_threshold, and show the total return
@@ -117,26 +139,24 @@ def Monte_Carlo_Simulation(env, name, threshold_u, threshold_d, pos_step=2, mode
                                 or False just return the final return
     '''
     res = 1
-    pos = 0
-    env.reset(mode)
+    env.mode = mode
+    env.position_split = pos_step
+    observation = env.reset()
     done = False
-    pos_step = 1/pos_step
     his = [res]
     while not done:
         # print(env.step(name))
-        observation, score, done = env.step(name)
-        if observation >= threshold_u:
-            if pos != 1:
-                res -= pos_step * res * 0.001
-            pos = min(pos + pos_step, 1)
-        elif observation <= threshold_d:
-            if pos != 0:
-                res -= pos_step * res * 0.001
-            pos = max(pos - pos_step, 0)
+        if observation[-1] >= threshold_u:
+            action = 2
+        elif observation[-1] <= threshold_d:
+            action = 0
+        else:
+            action = 1
+        observation, score, done, info = env.step(action)
         # pos = 1
         # print(observation, pos)
         # print(score)
-        res = res * abs(pos) * (score if pos >=0 else 2-score) + res * (1 - abs(pos))
+        res += score
         his.append(res)
     if need_plot:
         plt.plot(his)
@@ -145,32 +165,29 @@ def Monte_Carlo_Simulation(env, name, threshold_u, threshold_d, pos_step=2, mode
         return his
     return res
 
-def greedy_thresahold_find(trade_manager_name):
+def greedy_thresahold_find(model_name, etf_name):
     # Using Brute Force to test each pair of (up_threshold, down_threshold) and show the
     # score of the pair of best return. Then set the threshold in config.py
-    df = pd.DataFrame()
-    env = stock_env(trade_manager_name)
-    for name in env.trade_manager.data_path.keys():
-        best_threshold_u = 0
-        best_threshold_d = 0
-        best_score = 1
-        best_step = 1
-        for threshold_u in range(100):
-            for step in range(1, 5):
-                for threshold_d in range(-100, threshold_u):
+    env = stock_env(model_name, etf_name, mode='all', window=1)
+    best_threshold_u = 0
+    best_threshold_d = 0
+    best_score = 1
+    best_step = 1
+    for threshold_u in range(100):
+        for step in range(1, 5):
+            for threshold_d in range(-100, threshold_u):
 
-                    res = Monte_Carlo_Simulation(env, name, threshold_u / 10, threshold_d / 10, step)
-                    if res > best_score:
-                        best_score = res
-                        best_threshold_u = threshold_u / 10
-                        best_step = step
-                        best_threshold_d = threshold_d / 10
-        print('The best threshold_u for {} is {} with step {}, threshold_d for {}, the profit is {}'.format(name,
-                                                                                                            best_threshold_u,
-                                                                                                            best_step,
-                                                                                                            best_threshold_d,
-                                                                                                            best_score))
-        df[name] = best_score
+                res = Monte_Carlo_Simulation(env, threshold_u / 10, threshold_d / 10, step)
+                if res > best_score:
+                    best_score = res
+                    best_threshold_u = threshold_u / 10
+                    best_step = step
+                    best_threshold_d = threshold_d / 10
+    print('The best threshold_u for {} is {} with step {}, threshold_d for {}, the profit is {}'.format(model_name,
+                                                                                                        best_threshold_u,
+                                                                                                        best_step,
+                                                                                                        best_threshold_d,
+                                                                                                        best_score))
 
 def cal_weights(xlst, end_date=time.strftime('%Y-%m-%d')):
     n_stk = len(xlst)
@@ -223,7 +240,9 @@ def cal_weights(xlst, end_date=time.strftime('%Y-%m-%d')):
 
 
 if __name__ == '__main__':
-     df1 = pd.read_csv('test.csv', index_col=0)
-     df1 = df1.loc['2020/8/7':'2020/12/28']
-    # mkt_cmp(df1.cum_profit, start_date='2020-01-01')
-    # print(cal_weights(['000016', '399300','399006']))
+     #df1 = pd.read_csv('test.csv', index_col=0)
+     #df1 = df1.loc['2020/8/7':'2020/12/28']
+     # mkt_cmp(df1.cum_profit, start_date='2020-01-01')
+     # print(cal_weights(['000016', '399300','399006']))
+     env = stock_env('SVM_target30_classify5_inx-399006_loss-r2_lda_2021', '159915')
+     print(Monte_Carlo_Simulation(env, threshold_u=4, threshold_d=-7, mode='all'))
