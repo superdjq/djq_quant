@@ -5,6 +5,7 @@ prepare data set for lstm learning, and data washing process
 
 import pandas as pd
 import numpy as np
+import demjson
 import tushare as ts
 import dtshare as dt
 import os
@@ -13,6 +14,7 @@ import zsys
 from sklearn import preprocessing
 from sqlalchemy import create_engine
 import datetime, chinese_calendar
+import requests
 
 
 def prepare_single_df_to_lstm(df, xlst, window=30, classify=(2, 0), target_day=5, split_date='2019-01-01', noclose=True):
@@ -118,7 +120,7 @@ def get_label(df, target_day=5, pct_change=True):
         df['y'] = 100 * (df['y'] - df.close) / df.close
 
 
-def stock_update(df_all_stock_daily=None):
+def stock_update():
     '''
     Update your local stock data csv
     :param typ:
@@ -126,8 +128,7 @@ def stock_update(df_all_stock_daily=None):
                             '5'-every 5 minutes, same as '15','30','60'
     :return: Nothing
     '''
-    if df_all_stock_daily is None:
-        df_all_stock_daily = dt.stock_zh_a_spot()
+    df_all_stock_daily = get_data('market')
     if zsys.use_mysql:
         engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8"%(zsys.mysql_user,
                                                                               zsys.mysql_password,
@@ -138,7 +139,7 @@ def stock_update(df_all_stock_daily=None):
     file_path = zsys.rdatCN
     for i, rx in df_all_stock_daily.iterrows():
         code = rx['code']
-        print("\n", i, "/", n, '@', code, rx['name'], ",@", file_path if not zsys.use_mysql else
+        print("\n", i, "/", n, '@', code, ",@", file_path if not zsys.use_mysql else
               'schema: stk, table: %s' % code)
         tim0, fss = '2010-01-01', file_path + code + '.csv'
         if zsys.use_mysql:
@@ -238,12 +239,74 @@ def index_update():
         except IOError:
             pass  # skip,error
 
+def etf_update():
+    """
+    Update your local index data csv
+    :param typ:
+        typ: data frequency 'D'-daily, 'M'-monthly, 'Y'-yearly,
+                            '5'-every 5 minutes, same as '15','30','60'
+    :return: Nothing
+    """
+    df_all_etf_daily = fund_etf_category_sina('ETF基金')
+    if zsys.use_mysql:
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8" % (zsys.mysql_user,
+                                                                                zsys.mysql_password,
+                                                                                zsys.mysql_host,
+                                                                                zsys.mysql_port, 'stk'))
+    n = len(df_all_etf_daily['symbol'])
+    # for i,xc in enumerate(stkPool['code']):
+    file_path = zsys.rdatCNX
+    for i, rx in df_all_etf_daily.iterrows():
+        code = rx['symbol'][2:]
+        print("\n", i, "/", n, '@', code, rx['name'], ",@", file_path if not zsys.use_mysql else
+              'schema: stk, table: %s' % code)
+        tim0, fss = '2010-01-01', file_path + code + '.csv'
+        if zsys.use_mysql:
+            xfg = engine.has_table(code)
+        else:
+            xfg = os.path.exists(fss) and (os.path.getsize(fss) > 0)
+        if xfg:
+            xd0 = pd.read_sql_table(code, engine) if zsys.use_mysql else pd.read_csv(fss, index_col=False, encoding='utf8')
+            tim0 = list(xd0.date)[-1]
+
+        print('\t', xfg, ",", tim0)
+        # -----------
+        try:
+            xdk = ts.get_k_data(code, index=False, start=tim0, end=None)
+            if len(xdk) > 0:
+                xdk = xdk[zsys.ohlcDVLst]
+                if zsys.use_mysql:
+                    if xfg:
+                        if len(xdk) > 1:
+                            xdk.iloc[1:].to_sql(code, engine, if_exists='append', index=False)
+                    else:
+                        xdk.to_sql(code, engine, index=False)
+                else:
+                    if xfg:
+                        if len(xdk) > 1:
+                            xdk.iloc[1:].to_csv(fss, index=False, encoding='utf8', mode='a', header=0)
+                    else:
+                        xdk.to_csv(fss, index=False, encoding='utf8')
+
+        except IOError:
+            pass  # skip,error
 
 
-
-
-
-
+def mkt_update():
+    '''
+    Update your market info csv
+    :return: Nothing
+    '''
+    mkt = dt.stock_zh_a_spot()
+    if zsys.use_mysql:
+        engine = create_engine("mysql+mysqlconnector://%s:%s@%s:%s/%s?charset=utf8"%(zsys.mysql_user,
+                                                                              zsys.mysql_password,
+                                                                              zsys.mysql_host,
+                                                                              zsys.mysql_port, 'stk'))
+        mkt.to_sql('market', engine, if_exists='replace', index=False)
+    else:
+        file_path = zsys.rdatCN + 'market.csv'
+        mkt.to_csv(file_path, index=False, encoding='utf8')
 
 
 def last_workday():
@@ -274,8 +337,10 @@ def data_update():
         if os.path.exists(path) and list(pd.read_csv(path).date)[-1] == last_workday():
             need_update = False
     if need_update:
+        mkt_update()
         stock_update()
         index_update()
+        etf_update()
 
 def get_data(code, inx=False):
     """
@@ -291,23 +356,70 @@ def get_data(code, inx=False):
                                                                                             zsys.mysql_host,
                                                                                             zsys.mysql_port, db))
             df = pd.read_sql_table(code, engine)
+            engine.dispose()
         else:
             df = pd.read_csv((zsys.rdatCNX if inx else zsys.rdatCN) + code + '.csv')
     except:
         print('Fail to load local data, try to crawl online stock data')
         try:
-            df = ts.get_k_data(code, start='2010-01-01', index=inx)[zsys.ohlcDVLst]
+            if code != 'market':
+                df = ts.get_k_data(code, start='2010-01-01', index=inx)[zsys.ohlcDVLst]
+            else:
+                df = dt.stock_zh_a_spot()
         except:
             raise ValueError('Cannot get data')
     return df
 
+def get_all_etf_code():
+    df_all_index_daily = dt.index_stock_info()
+    URL = "http://www.fundsmart.com.cn/api/fund.list.data.php?d=&t=3&i={}"
+    etf_code_list = []
+    for code in df_all_index_daily.index_code.values:
+        ret = requests.get(URL.format(code)).json()['list']
+        for info in ret:
+            etf_code_list.append(info['ticker'])
+    return etf_code_list
+
+
+def fund_etf_category_sina(symbol: str = "封闭式基金") -> pd.DataFrame:
+    """
+    基金列表
+    http://vip.stock.finance.sina.com.cn/fund_center/index.html#jjhqetf
+    :param symbol: choice of {"封闭式基金", "ETF基金", "LOF基金"}
+    :type symbol: str
+    :return: 指定 symbol 的基金列表
+    :rtype: pandas.DataFrame
+    """
+    fund_map = {
+        "封闭式基金": "close_fund",
+        "ETF基金": "etf_hq_fund",
+        "LOF基金": "lof_hq_fund",
+    }
+    url = "http://vip.stock.finance.sina.com.cn/quotes_service/api/jsonp.php/IO.XSRV2.CallbackList['da_yPT46_Ll7K6WD']/Market_Center.getHQNodeDataSimple"
+    params = {
+        "page": "1",
+        "num": "1000",
+        "sort": "symbol",
+        "asc": "0",
+        "node": fund_map[symbol],
+        "[object HTMLDivElement]": "qvvne",
+    }
+    r = requests.get(url, params=params)
+    data_text = r.text
+    data_json = demjson.decode(data_text[data_text.find("([")+1:-2])
+    temp_df = pd.DataFrame(data_json)
+    return temp_df
 
 
 
 
 
 if __name__ == '__main__':
-    stock_update()
-    index_update()
+    #stock_update()
+    #index_update()
+    # etf_update()
+    # mkt_update()
+    print(get_data('market'))
+
 
 

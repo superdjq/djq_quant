@@ -29,12 +29,10 @@ with "D" for daily data and "n" for every n minutes data, which n in {5,15,30,60
 ```
 main_folder 
 ├── data
-│   ├── day
-│   │    ├── stk
-│   │    └── inx
-│   └── min               
+│   └── day
 │        ├── stk
 │        └── inx
+│
 ├── model
 │     ├── book         // each classifier has a book to record best params and .pkl file location
 │     ├── result       // record predict results for each day 
@@ -71,10 +69,16 @@ you may create a folder under folder "trade", and create a config file in the fo
 trade = Trader('etf_trade_manager')
 trade.daily_monitor()
 ```
+### define trading strategy
+Set trading agent in trader manager config file.
+Using reinforce learning agent defined in djq_agent
+```python
+agent = {'hs300': DdqnAgent(name)}
+```
 ## Todo list
 - [x] Add comments
 - [x] Utils module
 - [x] Data base support
-- [ ] Automatic trading module
-- [ ] Thresholds finding by RL
+- [x] Automatic trading module
+- [x] Trading strategy by RL
 - [ ] Diversified indicators
