@@ -72,7 +72,7 @@ class ThresholdAgent(Agent):
         best_threshold_u = 0
         best_threshold_d = 0
         best_score = 1
-        for threshold_u in range(100):
+        for threshold_u in range(-50, 100):
             for threshold_d in range(-100, threshold_u):
                 res = djq_utils.Monte_Carlo_Simulation(env, threshold_u / 10, threshold_d / 10, mode='all')
                 if res > best_score:
@@ -229,8 +229,9 @@ class DqnAgent(Agent):
         for model in self.model:
             res[model.forward(observation)] += 1
         action = max(res, key=lambda x: res[x])
-        if res[1] == res[action]:
-            action = 1
+        for k, v in res.items():
+            if k != action and v == res[action]:
+                return 1
         return action
 
 
@@ -273,13 +274,13 @@ class MultiAgent(Agent):
         for sub_agent in self.sub_agents:
             res[sub_agent.get_action(observation)] += 1
         action = max(res, key=lambda x: res[x])
-        if res[1] == res[action]:
-            action = 1
+        for k, v in res.items():
+            if k != action and v == res[action]:
+                return 1
         return action
 
 
 
 
 if __name__ == '__main__':
-    agent = MultiAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021#510050#1',
-                       [CemAgent, ThresholdAgent], agents_num=1)
+    agent = DqnAgent('ensemble_ADA_target10_classify5_inx-399006_loss-r2_pca50_proba_2021#159915#1')
