@@ -311,8 +311,11 @@ def mkt_update():
 
 def last_workday():
     i = 1
-    while not chinese_calendar.is_workday(datetime.date.today()-datetime.timedelta(days=i)) and \
-        datetime.date.weekday(datetime.date.today()-datetime.timedelta(days=i)) > 4:
+    pro = ts.pro_api()
+    while not pro.trade_cal(exchange='', start_date=(datetime.date.today() -
+                                                     datetime.timedelta(days=i)).strftime('%Y%m%d'),
+                            end_date=(datetime.date.today()-datetime.timedelta(days=i)).strftime('%Y%m%d')).is_open[0]:
+
         i += 1
     return ((datetime.datetime.now()-datetime.timedelta(days=i)).strftime("%Y-%m-%d"))
 
@@ -419,7 +422,7 @@ if __name__ == '__main__':
     #index_update()
     # etf_update()
     # mkt_update()
-    print(get_data('market'))
+    print(last_workday())
 
 
 

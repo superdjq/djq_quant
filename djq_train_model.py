@@ -56,7 +56,7 @@ class StcokClassifier(object):
                             bootstrap=True, oob_score=False,
                             random_state=None, verbose=0)}
     # ADD your algorithm's optimal params in dict BASE_MODEL_PARAMS
-    BASE_MODEL_PARAMS = {'SVM': {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.01, 0.001, 0.0001]},
+    BASE_MODEL_PARAMS = {'SVM': {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.01, 0.001, 0.0001, 'auto']},
                         'RF': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None]},
                          'ET': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None],
                                 'min_samples_split':[2, 10], 'min_samples_leaf': [1, 10]}}
@@ -407,12 +407,9 @@ def fold_score(clf, x_train, y_train):
 
 
 if __name__ == '__main__':
-    # pj = StcokClassifier('RF_target10_classify5_inx-2020sz50_loss-profit_working')
-    # pj.train()
-    # print('I change some file!')
     for pjNam in [
-                  'ensemble_ADA_target10_classify5_inx-399006_loss-r2_pca50_proba_2021'
-                 #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
+                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021',
+                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021_np-profit'
                   ]:
         pj = StcokClassifier(pjNam)
         pj.train()
