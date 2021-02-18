@@ -205,5 +205,3 @@ last_data = ['last_price_1', 'last_price_2', 'last_price_3', 'last_price_5', 'la
    
 if __name__ == "__main__":
     pass
-    
-    

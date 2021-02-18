@@ -56,7 +56,7 @@ class StcokClassifier(object):
                             bootstrap=True, oob_score=False,
                             random_state=None, verbose=0)}
     # ADD your algorithm's optimal params in dict BASE_MODEL_PARAMS
-    BASE_MODEL_PARAMS = {'SVM': {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.01, 0.001, 0.0001]},
+    BASE_MODEL_PARAMS = {'SVM': {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.01, 0.001, 0.0001, 'auto']},
                         'RF': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None]},
                          'ET': {'n_estimators': [200, 1000, 2000, 5000], 'max_depth': [10, 50, None],
                                 'min_samples_split':[2, 10], 'min_samples_leaf': [1, 10]}}
@@ -216,6 +216,8 @@ class StcokClassifier(object):
 
         df['y_pct_change'] = df['y'].copy()
         df_train = df[df.date <= train_end].copy()
+        if df_train.shape[0] < 252:
+            raise ValueError('Not enough train data!')
         df_test = df[df.date > train_end].copy()
         split, thresholds = pd.qcut(df_train['y'], self.classify, labels=range(self.classify), retbins=True)
         if thresholds[-2] < min_profit_ratio:
@@ -347,7 +349,7 @@ class StcokClassifier(object):
         file_path = folder + '/' + time.strftime('%H-%M-%S-') + self.pjNam + '_result.csv'
         # file_path = folder + '/' + self.pjNam + '_result.csv'
         if not os.path.isfile(file_path):
-            result = pd.concat(Parallel(n_jobs=8)(delayed(self.model_predict)(code, train_result, real_time=real_time) for code in self.mlst), axis=1)
+            result = pd.concat(Parallel(n_jobs=-1)(delayed(self.model_predict)(code, train_result, real_time=real_time) for code in self.mlst), axis=1)
             result = result.sort_index()
             result = result.fillna('2')
             result = result.astype('int')
@@ -406,8 +408,8 @@ def fold_score(clf, x_train, y_train):
 
 if __name__ == '__main__':
     for pjNam in [
-                  'ensemble_ADA_target30_classify5_inx-399300_loss-r2_pca50_proba_2021'
-                 #   'SVM_target30_classify5_inx-399006_loss-r2_lda_2021'
+                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021',
+                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021_np-profit'
                   ]:
         pj = StcokClassifier(pjNam)
         pj.train()

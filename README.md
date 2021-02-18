@@ -2,9 +2,16 @@
 
 China stock predictor and trade manager using ensemble machine learning algorithm.
 ## How to use
-You can simply create your model with a single line project name, like
-- SVM_target30_classify5_inx-399006_loss-r2_modelling_2021
-- ensemble_ADA_target30_classify5_inx-399006_loss-r2_proba_working_2021
+###Simply create your model with a single line project name, like
+- pj = StcokClassifier('SVM_target30_classify5_inx-399006_loss-r2_modelling_2021')
+- pj = StcokClassifier('ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021')
+  
+###Create portfolio management by using djq_trader module
+- trader = djq_trader.Trader('test')  (Pre-defined config file in /trade/test as a sample)
+
+###Create trading strategy by using djq_agent module
+- agent = DqnAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021#510050#1')
+
 ### Project name components
 - machine learning method, like "SVM", "RF" for random-forest, "ET" for extra-tree, 
   Start with "ensemble" means your project consists of several basic classifiers, and "ADA" for using adaboost.
@@ -38,7 +45,11 @@ main_folder
 │     ├── result       // record predict results for each day 
 │     └── model_folder                  
 ├── trade
-      └── trade_folder     
+│     └── trade_folder   
+│  
+├── agent
+│     └── agent_folder  // store weights or config file of each agent
+ 
 ```  
 ### Database support
 Set your Mysql database info in zsys.py to update or get data on your server
@@ -72,8 +83,8 @@ trade.daily_monitor()
 ### define trading strategy
 Set trading agent in trader manager config file.
 Using reinforce learning agent defined in djq_agent
-```python
-agent = {'hs300': DdqnAgent(name)}
+```python 
+agent = {'hs300': djq_agent.DdqnAgent(name)}
 ```
 ## Todo list
 - [x] Add comments
