@@ -57,13 +57,11 @@ class Trader(object):
 
     def initial_pred(self):
         df_pred = pd.DataFrame()
-        df_index = None
         for name, model_name in self.model_names.items():
-            df = StcokClassifier(model_name).daily_predict(real_time=False)
-            df_index = df.index
-            df_pred.loc[:, name] = df.weighted_pct
-        if df_index is not None:
-            df_pred = df_pred.set_index(df_index)
+            df = pd.DataFrame()
+            for i in range(5):
+                df[i] = StcokClassifier(model_name).daily_predict(real_time=False).weighted_pct
+            df_pred.loc[:, name] = df.mean(1)
         return df_pred
 
     def initial_env(self):
