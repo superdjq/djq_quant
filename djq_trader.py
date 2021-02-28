@@ -57,13 +57,11 @@ class Trader(object):
 
     def initial_pred(self):
         df_pred = pd.DataFrame()
-        df_index = None
         for name, model_name in self.model_names.items():
-            df = StcokClassifier(model_name).daily_predict(real_time=False)
-            df_index = df.index
-            df_pred.loc[:, name] = df.weighted_pct
-        if df_index is not None:
-            df_pred = df_pred.set_index(df_index)
+            df = pd.DataFrame()
+            for i in range(5):
+                df[i] = StcokClassifier(model_name).daily_predict(real_time=False).weighted_pct
+            df_pred.loc[:, name] = df.mean(1)
         return df_pred
 
     def initial_env(self):
@@ -110,6 +108,8 @@ class Trader(object):
         self.pos['total'] = 0
         for stk in self.securities:
             self.pos[stk+'_value'] = self.pos[stk+'_cash'] + self.pos[stk+'_shares'] * dict(self.df_return.iloc[i])[stk]
+        sell_book = {}
+        buy_book = {}
         for stk in self.securities:
             price = dict(self.df_return.iloc[i])[stk]
             pred_his = list(self.df_pred.iloc[max(0, i-4):i+1][stk])
@@ -125,10 +125,8 @@ class Trader(object):
                 self.pos[stk + '_shares'] += buy_shares
                 self.pos[stk+'_cash'] -= buy_shares * price * (1 + self.COMM_PCT)
                 self.pos[stk+'_value'] -= buy_shares * price * self.COMM_PCT
-                if buy_shares and execute_trade:
-                    crawler = djq_crawler.Crawler()
-                    crawler.buy(self.etf_names[stk], buy_shares)
-                    crawler.close()
+                if buy_shares:
+                    buy_book[self.etf_names[stk]] = buy_shares
 
             elif action == 0 and self.pos[stk+'_pos'] > 0:
                 self.pos[stk + '_pos'] -= 1
@@ -137,11 +135,21 @@ class Trader(object):
                 self.pos[stk + '_shares'] -= sell_shares
                 self.pos[stk + '_cash'] += sell_shares * price * (1 - self.COMM_PCT)
                 self.pos[stk + '_value'] -= sell_shares * price * self.COMM_PCT
-                if sell_shares and execute_trade:
-                    crawler = djq_crawler.Crawler()
-                    crawler.sell(self.etf_names[stk], sell_shares)
-                    crawler.close()
+                if sell_shares:
+                    sell_book[self.etf_names[stk]] = sell_shares
             self.pos['total'] += self.pos[stk+'_value']
+
+            if execute_trade:
+                while time.strftime('%H%m') < '0926':
+                    time.sleep(60)
+                for name, share in sell_book.items():
+                    crawler = djq_crawler.Crawler()
+                    crawler.sell(name, share)
+                    crawler.close()
+                for name, share in buy_book.items():
+                    crawler = djq_crawler.Crawler()
+                    crawler.buy(name, share)
+                    crawler.close()
 
 
 

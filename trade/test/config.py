@@ -4,17 +4,13 @@
 # You must define your weights of each security
 from djq_agent import ThresholdAgent, CemAgent, DqnAgent, DdqnAgent, MultiAgent
 
-weights = {'sz50': 0.3,
-          'cyb': 0.3,
-           'hs300': 0.4
+weights = {'sz50': 1,
            }
 
 # You must define your model_name of each security which trained by djq_train_model
 
 
 model_names = {'sz50': 'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021',
-               'cyb': 'ensemble_ADA_target30_classify5_inx-399006_loss-r2_pca50_proba_2021',
-               'hs300': 'ensemble_ADA_target30_classify5_inx-399300_loss-r2_pca50_proba_2021'
                }
 
 
@@ -28,21 +24,14 @@ model_names = {'sz50': 'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50
 # agent = {'cyb': MultiAgent('SVM_target30_classify5_inx-399006_loss-r2_lda_2021#159915#1',
 #                            subagents_list=[ThresholdAgent, CemAgent, DdqnAgent, DqnAgent], agents_num=[3, 5, 5, 5])}
 agent = {'sz50': MultiAgent('ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021#510050#1',
-                            [DqnAgent, DdqnAgent, ThresholdAgent], agents_num=1),
-         'cyb': MultiAgent('ensemble_ADA_target30_classify5_inx-399006_loss-r2_pca50_proba_2021#159915#1',
-                           [DqnAgent, DdqnAgent, ThresholdAgent], agents_num=1),
-         'hs300': MultiAgent('ensemble_ADA_target30_classify5_inx-399300_loss-r2_pca50_proba_2021#510300#1',
-                             [DqnAgent, DdqnAgent, ThresholdAgent], agents_num=1)}
+                            [ThresholdAgent], agents_num=1),
+}
 # You must define the percentage to buy or sell if your model shot a signal
 
 steps = {'sz50': 1,
-         'cyb': 1,
-         'hs300': 1
          }
 
 etf_names = {'sz50': '510050',
-             'cyb': '159915',
-             'hs300': '510300'
              }
 
 total_cash = 100000
