@@ -27,6 +27,7 @@ import djq_data_processor
 from djq_talib import get_all_finanical_indicators
 import tushare as ts
 import dtshare as dt
+import jqdatasdk as jq
 
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
@@ -140,10 +141,14 @@ class StcokClassifier(object):
                 # inx_df = pd.read_csv(finx, dtype={'code': str}, encoding='GBK')
                 # self.mlst = list(inx_df['code'])
                 try:
-                    inx_df = dt.index_stock_cons(self.inx)
+                    # inx_df = dt.index_stock_cons(self.inx)
+                    jq.auth('15502118293', 'GZ2810djq')
+                    inx_df = jq.get_index_stocks(self.inx + ('.XSHE' if self.inx.startswith('399') else '.XSHG'))
+                    # inx_df = dt.index_stock_cons(self.inx)
                 except:
                     raise ValueError('Can not find the constitutions of index {}'.format(self.inx))
-                self.mlst = list(inx_df['品种代码'])
+                # self.mlst = list(inx_df['品种代码'])
+                self.mlst = [symbol[:6] for symbol in inx_df]
 
         if not os.path.isdir(self.BASE_DIR + self.pjNam):
             os.makedirs(self.BASE_DIR + self.pjNam)
@@ -256,9 +261,9 @@ class StcokClassifier(object):
         """
         for code in self.mlst.copy():
             file_path = StcokClassifier.BASE_DIR + self.pjNam + '/' + code + '.pkl'
-            if os.path.isfile(file_path):
-                print('Model for code:{} is already existed!'.format(code))
-                continue
+            # if os.path.isfile(file_path):
+            #     print('Model for code:{} is already existed!'.format(code))
+            #     continue
             print('Training code:{} for project:{}'.format(code, self.pjNam))
             try:
                 x_train, y_train, x_test, y_test, df_train, df_test, thresholds = self.data_prepare(code, real_time=False)
@@ -266,7 +271,12 @@ class StcokClassifier(object):
                 print(e.args)
                 self.mlst.remove(code)
                 continue
-            if self.model_type in StcokClassifier.BASE_MODEL_PARAMS:
+            if os.path.isfile(file_path):
+                print('Model for code:{} is already existed!'.format(code))
+                model = joblib.load(file_path)
+                score = model.score(x_train, y_train)
+                params = model.get_params()
+            elif self.model_type in StcokClassifier.BASE_MODEL_PARAMS:
                 grid = GridSearchCV(StcokClassifier.BASE_MODELS[self.model_type],
                                     param_grid=StcokClassifier.BASE_MODEL_PARAMS[self.model_type], cv=10,
                                     scoring=self.loss_type, n_jobs=8)
@@ -408,7 +418,7 @@ def fold_score(clf, x_train, y_train):
 
 if __name__ == '__main__':
     for pjNam in [
-                  'ensemble_ADA_target30_classify5_inx-000905_loss-r2_pca50_proba_date-2015-2020_2022'
+                  'SVM_target10_classify5_inx-000016_loss-r2_pca50_date-2015-2020_2022'
                   ]:
         pj = StcokClassifier(pjNam)
         pj.train()
