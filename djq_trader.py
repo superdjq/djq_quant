@@ -140,7 +140,7 @@ class Trader(object):
             self.pos['total'] += self.pos[stk+'_value']
 
             if execute_trade:
-                while time.strftime('%H%m') < '0926':
+                while time.strftime('%H%M') < '0926':
                     time.sleep(60)
                 for name, share in sell_book.items():
                     crawler = djq_crawler.Crawler()
@@ -231,9 +231,5 @@ class Trader(object):
 
 
 if __name__ == '__main__':# and chinese_calendar.is_workday(datetime.date.today()):
-    trade = Trader('test')
-    while time.localtime().tm_hour < 16:
-
-        trade.daily_monitor()
-        trade.print_to_file('------------------------------------------------------------------------------------------------------------------------------------------')
-        time.sleep(600)
+    trade = Trader('main_etf_trader_2021')
+    #trade = Trader('test')

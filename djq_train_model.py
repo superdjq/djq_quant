@@ -408,8 +408,7 @@ def fold_score(clf, x_train, y_train):
 
 if __name__ == '__main__':
     for pjNam in [
-                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021',
-                  'ensemble_ADA_target10_classify5_inx-000016_loss-r2_pca50_proba_2021_np-profit'
+                  'ensemble_ADA_target30_classify5_inx-000905_loss-r2_pca50_proba_date-2015-2020_2022'
                   ]:
         pj = StcokClassifier(pjNam)
         pj.train()
