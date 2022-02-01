@@ -62,7 +62,9 @@ class stock_env(object):
         self.model = StcokClassifier(model_name)
         self.etf = etf_name
         self.df_pred = self.model.daily_predict(real_time=False).weighted_pct
+        self.df_pred = self.df_pred[self.df_pred.index < '2020-01-01']
         self.df_env = self.initial_env()
+        print(self.df_env, self.df_pred)
         self.n_action = 3
         self.window = window
         self.pos = [0] * window

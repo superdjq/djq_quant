@@ -419,10 +419,9 @@ def fund_etf_category_sina(symbol: str = "封闭式基金") -> pd.DataFrame:
 
 if __name__ == '__main__':
     #stock_update()
-    #index_update()
+    index_update()
     # etf_update()
     # mkt_update()
-    print(last_workday())
 
 
 
